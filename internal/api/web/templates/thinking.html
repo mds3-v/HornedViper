@@ -1,0 +1,19 @@
+{{define "thinking"}}
+{{if .Thinking}}
+<div class="think-box{{if ne .Status "thinking"}} collapsed{{end}}">
+  <button class="think-head" type="button" aria-expanded="{{if eq .Status "thinking"}}true{{else}}false{{end}}" onclick="var b=this.parentElement;b.classList.toggle('collapsed');this.setAttribute('aria-expanded',b.classList.contains('collapsed')?'false':'true')">
+    <span class="think-chevron">⌄</span>
+    <span>思考过程</span>
+    <span class="think-count">{{len (thinkingSteps .Thinking)}} 步{{if gt .ThinkingMS 0}} · {{thinkDuration .ThinkingMS}}{{end}}</span>
+  </button>
+  <div class="think-list">
+    {{range thinkingSteps .Thinking}}
+    <details class="think-step">
+      <summary><span class="think-icon">{{if eq (thinkStepKind .) "运行命令"}}⌘{{else}}✦{{end}}</span><span class="think-kind">{{thinkStepKind .}}</span><span class="think-sep">·</span><span class="think-text">{{.}}</span></summary>
+      <div class="think-full">{{.}}</div>
+    </details>
+    {{end}}
+  </div>
+</div>
+{{end}}
+{{end}}

@@ -1,0 +1,52 @@
+{{define "content"}}
+{{if .TaskGroups}}
+<section class="card">
+  <div class="card-head"><h2>任务资产</h2><span class="muted">按任务 ID 划分</span></div>
+  <table class="table">
+    <thead><tr><th>任务</th><th>资产数</th><th>最近发现</th></tr></thead>
+    <tbody>
+    {{range .TaskGroups}}
+      <tr>
+        <td><a href="{{.URL}}">{{if .Title}}{{.Title}}{{else}}#{{.TaskID}}{{end}}</a><div class="muted mono">#{{.TaskID}}</div></td>
+        <td>{{.Count}}</td>
+        <td class="mono">{{shortTime .LastAt}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{template "pagination" .TaskPagination}}
+</section>
+{{else}}
+<section class="card">
+  <div class="card-head">
+    <h2>{{if .GroupTitle}}{{.GroupTitle}}{{else}}全部资产{{end}}</h2>
+    {{if .Mode}}<a class="link" href="{{.BackURL}}">← 返回资产项目</a>{{else}}<span class="muted">共 {{.Pagination.Total}} 个</span>{{end}}
+  </div>
+  <form method="get" action="/assets" class="traffic-search">
+    <input type="hidden" name="task" value="{{.FilterTaskID}}">
+    <input type="search" name="q" value="{{.SearchQuery}}" placeholder="模糊搜索类型 / 值 / 来源">
+    <button class="btn small" type="submit">搜索</button>
+    {{if .SearchQuery}}<a class="link" href="{{.SearchClearURL}}">清除</a>{{end}}
+    <span class="muted">共 {{.Pagination.Total}} 个</span>
+  </form>
+  {{if .Assets}}
+  <table class="table">
+    <thead><tr><th>ID</th><th>类型</th><th>值</th><th>范围</th><th>来源</th><th>首次发现</th></tr></thead>
+    <tbody>
+    {{range .Assets}}
+      <tr>
+        <td class="mono">#{{.ID}}</td>
+        <td><span class="badge muted">{{assetTypeLabel .Type}}</span></td>
+        <td class="mono">{{.Value}}</td>
+        <td>{{scopeLabel .ScopeStatus}}</td>
+        <td>{{.Source}}</td>
+        <td class="mono">{{shortTime .FirstSeen}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}<div class="empty">{{if .SearchQuery}}没有匹配的资产。{{else}}暂无资产。{{end}}</div>{{end}}
+  {{template "pagination" .Pagination}}
+</section>
+{{end}}
+{{end}}

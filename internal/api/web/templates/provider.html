@@ -1,0 +1,101 @@
+{{define "content"}}
+<section class="page-head">
+  <div>
+    <h1>{{if .IsNew}}新建供应商{{else}}{{.Provider.Name}}{{end}}</h1>
+    <p>{{if .IsNew}}从预设模板创建，或直接填写模型、接口地址和 API 密钥。{{else}}{{.Provider.Description}}{{end}}</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn" href="/settings">← 返回列表</a>
+  </div>
+</section>
+
+{{if .Tested}}
+<div class="notice {{if .TestOK}}ok{{else}}warn{{end}}">
+  <strong>测试{{if .TestOK}}通过{{else}}失败{{end}}</strong> — {{.Key}}
+  {{if .TestOK}}<span class="muted">· {{.TestModel}} · {{.TestLatency}}</span>{{end}}
+  <div class="mono">{{.TestMessage}}</div>
+</div>
+{{end}}
+
+<form class="provider-form" method="post" action="{{if .IsNew}}/settings/providers{{else}}/settings/providers/{{.Key}}{{end}}" data-new="{{if .IsNew}}1{{else}}0{{end}}">
+  <input type="hidden" name="key" value="{{.Key}}">
+  <input type="hidden" name="preset" value="{{.PresetKey}}">
+
+  <section class="card">
+    <div class="card-head"><h2>基础信息</h2><span class="muted">保存后出现在供应商列表</span></div>
+    <div class="form-grid">
+      <label>从预设模板创建
+        <select id="preset-picker" onchange="applyPreset(this)">
+          <option value="">选择模板…</option>
+          {{range .Presets}}
+          <option value="{{.Key}}"
+                  data-name="{{.Name}}"
+                  data-desc="{{.Description}}"
+                  data-format="{{.Format}}"
+                  data-base="{{.BaseURL}}"
+                  data-model="{{.Model}}"
+                  {{if eq $.PresetKey .Key}}selected{{end}}>{{.Name}} · {{.Model}}</option>
+          {{end}}
+        </select>
+      </label>
+      <label>名称
+        <input name="name" value="{{.Provider.Name}}" required>
+      </label>
+      <label>描述
+        <input name="description" value="{{.Provider.Description}}">
+      </label>
+      <label>配置模型
+        <input name="model" value="{{.Provider.Model}}" placeholder="例如 deepseek-chat" required>
+      </label>
+      <label>接口地址
+        <input name="base_url" value="{{.Provider.BaseURL}}" placeholder="https://..." required>
+      </label>
+      <label>API 密钥
+        <input type="password" name="api_key" placeholder="{{if .Masked}}{{.Masked}}{{else}}输入 API 密钥{{end}}">
+      </label>
+      <label class="checkbox"><input type="checkbox" name="clear_key" value="1"> 清除已有密钥</label>
+      <label>上游协议
+        <select name="format">
+          <option value="openai" {{if eq .Provider.Format "openai"}}selected{{end}}>Chat Completions（聊天补全）</option>
+          <option value="openai-responses" {{if eq .Provider.Format "openai-responses"}}selected{{end}}>Responses API（响应接口）</option>
+          <option value="anthropic" {{if eq .Provider.Format "anthropic"}}selected{{end}}>Anthropic Messages（Claude）</option>
+        </select>
+      </label>
+    </div>
+  </section>
+
+  <div class="form-actions">
+    <button class="btn primary" type="submit">保存</button>
+    <button class="btn" type="submit" formaction="/settings/test">测试</button>
+    <span class="muted">测试使用当前表单值，不会保存。</span>
+  </div>
+</form>
+
+{{if not .IsNew}}
+<div class="form-actions">
+  <form method="post" action="/settings/providers/{{.Key}}/default"><button class="btn" type="submit">设为默认</button></form>
+  <form method="post" action="/settings/providers/{{.Key}}/delete" onsubmit="return confirm('删除供应商 {{.Provider.Name}}？')"><button class="btn danger" type="submit">删除</button></form>
+</div>
+{{end}}
+
+<script>
+function applyPreset(sel) {
+  const o = sel.selectedOptions[0];
+  if (!o || !o.value) return;
+  const form = document.querySelector('.provider-form');
+  const set = (name, value) => {
+    const el = form.querySelector('[name="' + name + '"]');
+    if (el) el.value = value || '';
+  };
+  set('name', o.dataset.name);
+  set('description', o.dataset.desc);
+  set('format', o.dataset.format);
+  set('base_url', o.dataset.base);
+  set('model', o.dataset.model);
+  if (form.dataset.new === '1') {
+    set('key', o.value);
+    set('preset', o.value);
+  }
+}
+</script>
+{{end}}

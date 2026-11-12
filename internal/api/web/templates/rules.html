@@ -1,0 +1,39 @@
+{{define "content"}}
+<section class="page-head">
+  <div><h1>拦截规则</h1><p>工具执行前按优先级逐条匹配，首条命中的规则生效。</p></div>
+  <div class="page-actions"><a class="btn primary" href="/intercept-rules/new">+ 新建规则</a></div>
+</section>
+<section class="card">
+  <div class="card-head"><h2>规则列表</h2><span class="muted">共 {{.Pagination.Total}} 条</span></div>
+  {{if .Rules}}
+  <table class="table">
+    <thead><tr><th>优先级</th><th>名称</th><th>目标</th><th>类型</th><th>模式</th><th>策略</th><th>状态</th><th></th></tr></thead>
+    <tbody>
+    {{range .Rules}}
+      <tr>
+        <td class="mono">{{.Priority}}</td>
+        <td><a href="/intercept-rules/{{.ID}}">{{.Name}}</a> {{if .Builtin}}<span class="badge ok">内置</span>{{end}}</td>
+        <td>{{if eq .Target "input"}}输入{{else}}输出{{end}}</td>
+        <td>{{if eq .MatchType "regex"}}正则{{else}}字符串{{end}}</td>
+        <td class="mono">{{.Pattern}}</td>
+        <td>{{if eq .Mode "ask"}}<span class="badge warn">需审批</span>{{else if eq .Mode "deny"}}<span class="badge bad">禁止</span>{{else}}<span class="badge ok">允许</span>{{end}}</td>
+        <td>{{if .Enabled}}<span class="badge ok">启用</span>{{else}}<span class="badge muted">停用</span>{{end}}</td>
+        <td class="rule-actions">
+          <form method="post" action="/intercept-rules/{{.ID}}/toggle">
+            <input type="hidden" name="enabled" value="{{if .Enabled}}0{{else}}1{{end}}">
+            <button class="btn" type="submit">{{if .Enabled}}停用{{else}}启用{{end}}</button>
+          </form>
+          {{if not .Builtin}}
+          <form method="post" action="/intercept-rules/{{.ID}}/delete" onsubmit="return confirm('删除规则 {{.Name}}？')">
+            <button class="btn danger" type="submit">删除</button>
+          </form>
+          {{end}}
+        </td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}<div class="empty">暂无规则。</div>{{end}}
+  {{template "pagination" .Pagination}}
+</section>
+{{end}}

@@ -1,0 +1,78 @@
+{{define "layout"}}
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} · HornedViper</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">HV</div>
+      <div>
+        <div class="brand-name">HornedViper</div>
+        <div class="brand-sub">安全测试工作流 · {{version}}</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <a class="nav-item {{if eq .Tab ""}}active{{end}}" href="/">仪表盘</a>
+      <a class="nav-item {{if eq .Tab "chat"}}active{{end}}" href="/chat">对话</a>
+      <a class="nav-item {{if eq .Tab "new"}}active{{end}}" href="/new">新会话</a>
+      <a class="nav-item {{if eq .Tab "tasks"}}active{{end}}" href="/tasks">任务</a>
+      <a class="nav-item {{if eq .Tab "findings"}}active{{end}}" href="/findings">发现</a>
+      <a class="nav-item {{if eq .Tab "traffic"}}active{{end}}" href="/traffic">流量</a>
+      <a class="nav-item {{if eq .Tab "assets"}}active{{end}}" href="/assets">资产</a>
+      <div class="nav-label">审批与策略</div>
+      <a class="nav-item {{if eq .Tab "approvals"}}active{{end}}" href="/approvals">待审批</a>
+      <a class="nav-item {{if eq .Tab "approval-records"}}active{{end}}" href="/approval-records">审批记录</a>
+      <a class="nav-item {{if eq .Tab "agents"}}active{{end}}" href="/agents">Agent 管理</a>
+      <a class="nav-item {{if eq .Tab "rules"}}active{{end}}" href="/intercept-rules">拦截规则</a>
+      <div class="nav-label">系统</div>
+      <a class="nav-item {{if eq .Tab "tools"}}active{{end}}" href="/tools">工具管理</a>
+      <a class="nav-item {{if eq .Tab "events"}}active{{end}}" href="/events">事件</a>
+      <a class="nav-item {{if eq .Tab "llm-records"}}active{{end}}" href="/llm-records">LLM 记录</a>
+      <a class="nav-item {{if eq .Tab "logs"}}active{{end}}" href="/logs">后端日志</a>
+      <a class="nav-item {{if eq .Tab "settings"}}active{{end}}" href="/settings">设置</a>
+      <a class="nav-item {{if eq .Tab "api"}}active{{end}}" href="/api">API</a>
+    </nav>
+    <div class="sidebar-foot">
+      <span class="dot"></span> SQLite · 单用户 · {{version}}
+    </div>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <div class="crumbs">
+        <span>HornedViper</span><span class="sep">/</span><span class="current">{{.Title}}</span>
+      </div>
+      <div class="topbar-actions">
+        <span class="pill">{{version}}</span>
+      </div>
+    </header>
+    <main class="content{{if eq .Tab ""}} dashboard-content{{else if or (eq .Tab "findings") (eq .Tab "approval-records")}} full-width{{end}}">
+      {{template "content" .}}
+    </main>
+  </div>
+</div>
+<script src="/static/settings.js" defer></script>
+<script src="/static/jobs.js" defer></script>
+</body>
+</html>
+{{end}}
+
+{{define "pagination"}}
+{{if gt .TotalPages 1}}
+<div class="pagination">
+  <span class="muted">{{.From}}–{{.To}} / 共 {{.Total}} 条</span>
+  <div class="pager">
+    {{if .HasPrev}}<a class="page-btn" href="{{.PrevURL}}">上一页</a>{{else}}<span class="page-btn disabled">上一页</span>{{end}}
+    {{range .Links}}
+      {{if eq .Number 0}}<span class="page-ellipsis">…</span>{{else}}<a class="page-btn {{if .Active}}active{{end}}" href="{{.URL}}">{{.Number}}</a>{{end}}
+    {{end}}
+    {{if .HasNext}}<a class="page-btn" href="{{.NextURL}}">下一页</a>{{else}}<span class="page-btn disabled">下一页</span>{{end}}
+  </div>
+</div>
+{{end}}
+{{end}}

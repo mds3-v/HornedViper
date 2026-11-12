@@ -1,0 +1,116 @@
+{{define "content"}}
+{{if or .TaskGroups .ConversationGroups}}
+<section class="card">
+  <div class="card-head"><h2>任务流量</h2><span class="muted">按任务 ID 划分</span></div>
+  {{if .TaskGroups}}
+  <table class="table">
+    <thead><tr><th>任务</th><th>请求数</th><th>最近请求</th></tr></thead>
+    <tbody>
+    {{range .TaskGroups}}
+      <tr>
+        <td><a href="{{.URL}}">{{if .Title}}{{.Title}}{{else}}#{{.TaskID}}{{end}}</a><div class="muted mono">#{{.TaskID}}</div></td>
+        <td>{{.Count}}</td>
+        <td class="mono">{{shortTime .LastAt}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}<div class="empty">暂无任务流量。</div>{{end}}
+  {{template "pagination" .TaskPagination}}
+</section>
+<section class="card">
+  <div class="card-head"><h2>新会话流量</h2><span class="muted">按新会话 ID 划分</span></div>
+  {{if .ConversationGroups}}
+  <table class="table">
+    <thead><tr><th>新会话</th><th>请求数</th><th>最近请求</th></tr></thead>
+    <tbody>
+    {{range .ConversationGroups}}
+      <tr>
+        <td><a href="{{.URL}}">{{if .Title}}{{.Title}}{{else}}#{{.ConversationID}}{{end}}</a><div class="muted mono">#{{.ConversationID}}</div></td>
+        <td>{{.Count}}</td>
+        <td class="mono">{{shortTime .LastAt}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}<div class="empty">暂无新会话流量。新会话中的 web_fetch 会记录到这里。</div>{{end}}
+  {{template "pagination" .ConversationPagination}}
+</section>
+{{else}}
+<section class="card">
+  <div class="card-head">
+    <h2>{{if .GroupTitle}}{{.GroupTitle}}{{else}}HTTP 请求 / 响应{{end}}</h2>
+    {{if .Mode}}<a class="link" href="{{.BackURL}}">← 返回流量项目</a>{{else}}<span class="muted">共 {{.Pagination.Total}} 条</span>{{end}}
+  </div>
+  <form method="get" action="/traffic" class="traffic-search">
+    <input type="hidden" name="task" value="{{.FilterTaskID}}">
+    <input type="hidden" name="conversation" value="{{.FilterConversationID}}">
+    <input type="search" name="q" value="{{.SearchQuery}}" placeholder="模糊搜索 URL / Host / 请求 / 响应">
+    <button class="btn small" type="submit">搜索</button>
+    {{if .SearchQuery}}<a class="link" href="{{.SearchClearURL}}">清除</a>{{end}}
+    <span class="muted">共 {{.Pagination.Total}} 条</span>
+  </form>
+  {{if .Rows}}
+  <table class="table">
+    <thead><tr><th>时间</th><th>来源</th><th>方法</th><th>Host</th><th>URL</th><th>状态 / 大小</th></tr></thead>
+    <tbody>
+    {{range $i, $r := .Rows}}
+      <tr class="traffic-row" data-target="traffic-detail-{{$i}}" tabindex="0" title="点击查看请求 / 响应">
+        <td class="mono">{{shortTime $r.Time}}</td>
+        <td>
+          {{if $r.TaskID}}<a href="/tasks/{{$r.TaskID}}">{{$r.TaskTitle}}</a><div class="muted mono">Work #{{$r.WorkID}}</div>{{else}}<span class="muted">新会话 #{{$r.ConversationID}}</span>{{end}}
+        </td>
+        <td><span class="badge muted">{{$r.Method}}</span></td>
+        <td class="mono">{{$r.Host}}</td>
+        <td class="mono url-cell">{{$r.URL}}</td>
+        <td>
+          {{if $r.IsError}}<span class="badge bad">失败</span>{{else if $r.StatusCode}}<span class="badge ok">{{$r.StatusCode}}</span>{{else}}<span class="badge ok">完成</span>{{end}}
+          <div class="muted mono">{{$r.ResponseSize}} B</div>
+        </td>
+      </tr>
+      <tr id="traffic-detail-{{$i}}" class="traffic-detail-row" hidden>
+        <td colspan="6">
+          <div class="traffic-detail-grid">
+            <div class="traffic-pane">
+              <h4>请求包</h4>
+              <pre>{{$r.Request}}</pre>
+            </div>
+            <div class="traffic-pane">
+              <h4>响应包</h4>
+              <pre>{{$r.Response}}</pre>
+            </div>
+          </div>
+        </td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{template "pagination" .Pagination}}
+  {{else}}<div class="empty">{{if .SearchQuery}}没有匹配的流量。{{else}}该来源暂无 HTTP 流量。{{end}}</div>{{end}}
+</section>
+{{end}}
+
+<script>
+(function () {
+  function toggleRow(row) {
+    const detail = document.getElementById(row.dataset.target);
+    if (!detail) return;
+    detail.hidden = !detail.hidden;
+    row.classList.toggle('expanded', !detail.hidden);
+    row.setAttribute('aria-expanded', detail.hidden ? 'false' : 'true');
+  }
+  document.addEventListener('click', function (event) {
+    if (event.target.closest('a')) return;
+    const row = event.target.closest('.traffic-row');
+    if (row) toggleRow(row);
+  });
+  document.addEventListener('keydown', function (event) {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const row = event.target.closest('.traffic-row');
+    if (!row) return;
+    event.preventDefault();
+    toggleRow(row);
+  });
+})();
+</script>
+{{end}}

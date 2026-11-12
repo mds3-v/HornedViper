@@ -1,0 +1,26 @@
+{{define "content"}}
+<section class="page-head">
+  <div><h1>LLM 调用 #{{.Call.ID}}</h1><p>任务 #{{.Call.TaskID}} · Work #{{.Call.WorkID}} · {{roleLabel .Call.Role}} · {{.Call.Model}}</p></div>
+  <div class="page-actions"><a class="btn" href="/tasks/{{.Call.TaskID}}?tab=trace">← 返回解题溯源</a></div>
+</section>
+<section class="card">
+  <div class="card-head"><h2>基础信息</h2><span class="muted mono">{{shortTime .Call.CreatedAt}}</span></div>
+  <div class="kv">
+    <div><span class="muted">Provider</span><code>{{.Call.Provider}}</code></div>
+    <div><span class="muted">Model</span><code>{{.Call.Model}}</code></div>
+    <div><span class="muted">Tokens</span><code>{{.Call.UsageJSON}}</code></div>
+    <div><span class="muted">Latency</span><code>{{.Call.LatencyMS}} ms</code></div>
+    <div><span class="muted">Session</span><code>{{.Call.SessionID}}</code></div>
+    <div><span class="muted">Turn</span><code>{{.Call.Turn}}</code></div>
+  </div>
+  {{if .Call.Error}}<div class="notice warn">错误：{{.Call.Error}}</div>{{end}}
+</section>
+<section class="card">
+  <div class="card-head"><h2>系统提示词</h2></div>
+  {{range .System}}<pre class="trace-pre">{{.}}</pre>{{else}}<div class="empty">无 system prompt。</div>{{end}}
+</section>
+<section class="card"><div class="card-head"><h2>请求</h2></div><pre class="trace-pre">{{.Call.RequestJSON}}</pre></section>
+<section class="card"><div class="card-head"><h2>响应</h2></div><pre class="trace-pre">{{.Call.ResponseJSON}}</pre></section>
+{{if .Call.Thinking}}<section class="card"><div class="card-head"><h2>思考</h2></div><pre class="trace-pre">{{.Call.Thinking}}</pre></section>{{end}}
+{{if .Call.ToolCallsJSON}}<section class="card"><div class="card-head"><h2>工具调用</h2></div><pre class="trace-pre">{{.Call.ToolCallsJSON}}</pre></section>{{end}}
+{{end}}

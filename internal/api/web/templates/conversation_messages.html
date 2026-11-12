@@ -1,0 +1,19 @@
+{{define "conversation_messages"}}
+<div id="conversation-messages-inner" data-thinking="{{if .Thinking}}1{{else}}0{{end}}">
+  {{if .Messages}}
+    {{range .Messages}}
+    <div class="chat-msg {{if eq .Role "user"}}human{{else}}assistant{{end}}">
+      <div class="chat-msg-meta">
+        {{if eq .Role "user"}}人工{{else}}会话 Agent{{end}} · {{shortTime .CreatedAt}}
+        {{if eq .Status "thinking"}} · 思考中{{end}}
+      </div>
+      {{template "thinking" .}}
+      {{if eq .Status "thinking"}}<div class="chat-thinking"><span class="spinner"></span> 思考中，用时 <span class="think-elapsed" data-start="{{.CreatedAt.UnixMilli}}">0 秒</span>…</div>{{end}}
+      {{if .Content}}<div class="chat-msg-text markdown-body">{{markdown .Content}}</div>{{end}}
+      {{if .Attachments}}<div class="chat-attachments">{{range .Attachments}}<a class="att-chip" href="{{conversationAttachmentURL $.Conversation.ID .Kind .Name}}">{{.Name}} · {{.Size}} B</a>{{end}}</div>{{end}}
+      {{if .Error}}<div class="chat-error">{{.Error}}</div>{{end}}
+    </div>
+    {{end}}
+  {{else}}<div class="empty">{{if .Draft}}开始一个新会话。{{else}}还没有消息。{{end}}</div>{{end}}
+</div>
+{{end}}

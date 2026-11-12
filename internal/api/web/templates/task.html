@@ -1,0 +1,518 @@
+{{define "content"}}
+<section class="page-head">
+  <div>
+    <h1>#{{.Task.ID}} {{.Task.Title}}</h1>
+    <form method="post" action="/tasks/{{.Task.ID}}/rename" class="task-rename-form">
+      <input name="title" value="{{.Task.Title}}" required aria-label="任务标题">
+      <button class="btn small" type="submit">重命名</button>
+    </form>
+    <p>任务详情 · {{modeLabel .Task.Mode}} · 创建于 {{shortTime .Task.CreatedAt}}</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn" href="/tasks/{{.Task.ID}}/export">导出报告</a>
+    <a class="btn" href="/tasks">← 返回任务列表</a>
+    <div class="badges">
+      <span class="badge {{statusClass .Task.Status}}">{{statusLabel .Task.Status}}</span>
+      <span class="badge muted">{{modeLabel .Task.Mode}}</span>
+      {{with .Goal}}<span class="badge {{statusClass .State}}">目标：{{statusLabel .State}}</span>{{end}}
+    </div>
+  </div>
+</section>
+
+<div class="task-controls">
+  {{if or (eq (printf "%s" .Task.Status) "running") (eq (printf "%s" .Task.Status) "planning")}}
+  <form method="post" action="/tasks/{{.Task.ID}}/pause"><button class="btn" type="submit">暂停</button></form>
+  {{end}}
+  {{if eq (printf "%s" .Task.Status) "paused"}}
+  <form method="post" action="/tasks/{{.Task.ID}}/resume"><button class="btn primary" type="submit">继续</button></form>
+  {{end}}
+  {{if and (ne (printf "%s" .Task.Status) "completed") (ne (printf "%s" .Task.Status) "cancelled") (ne (printf "%s" .Task.Status) "failed")}}
+  <form method="post" action="/tasks/{{.Task.ID}}/stop" onsubmit="return confirm('停止这个任务？')"><button class="btn danger" type="submit">停止</button></form>
+  {{end}}
+  <form method="post" action="/tasks/{{.Task.ID}}/delete" onsubmit="return confirm('永久删除任务 #{{.Task.ID}}？任务、事件、消息和附件文件会被删除；流量会保留，LLM 记录会归档。此操作不可恢复。')"><button class="btn danger" type="submit">删除任务</button></form>
+</div>
+
+<nav class="tabs">
+  <a class="{{if eq .Tab "overview"}}active{{end}}" href="?tab=overview">概览</a>
+  <a class="{{if eq .Tab "plan"}}active{{end}}" href="?tab=plan">计划</a>
+  <a class="{{if eq .Tab "sessions"}}active{{end}}" href="?tab=sessions">会话与追踪</a>
+  <a class="{{if eq .Tab "graph"}}active{{end}}" href="?tab=graph">探索图</a>
+  <a class="{{if eq .Tab "trace"}}active{{end}}" href="?tab=trace">解题溯源</a>
+  <a class="{{if eq .Tab "report"}}active{{end}}" href="?tab=report">报告</a>
+  <a class="{{if eq .Tab "quarantine"}}active{{end}}" href="?tab=quarantine">隔离{{if .QuarantineTotal}} <span class="count">{{.QuarantineTotal}}</span>{{end}}</a>
+  <a class="{{if eq .Tab "conflicts"}}active{{end}}" href="?tab=conflicts">冲突{{if .ConflictTotal}} <span class="count">{{.ConflictTotal}}</span>{{end}}</a>
+  {{if eq .Task.Mode "ctf"}}<a class="{{if eq .Tab "flags"}}active{{end}}" href="?tab=flags">Flag {{if .FlagTotal}}<span class="count">{{.FlagTotal}}</span>{{end}}</a>{{end}}
+  <a class="{{if eq .Tab "approvals"}}active{{end}}" href="?tab=approvals">审批 {{if .PendingTotal}}<span class="count">{{.PendingTotal}}</span>{{end}}</a>
+  <a class="{{if eq .Tab "findings"}}active{{end}}" href="?tab=findings">发现</a>
+  <a class="{{if eq .Tab "assets"}}active{{end}}" href="?tab=assets">资产</a>
+  <a class="{{if eq .Tab "events"}}active{{end}}" href="?tab=events">事件</a>
+</nav>
+
+{{if eq .Tab "graph"}}
+<section class="card graph-card">
+  <div class="card-head">
+    <h2>探索图 / 资产图</h2>
+    <span class="muted">仅显示关键节点 · {{.Graph.ShownNodes}} / {{.Graph.TotalNodes}}</span>
+  </div>
+  {{with .Graph}}
+  {{if .Nodes}}
+  <div class="graph-legend">
+    <span><i class="graph-dot graph-goal"></i>目标</span>
+    <span><i class="graph-dot graph-intent"></i>意图</span>
+    <span><i class="graph-dot graph-fact"></i>事实</span>
+    <span><i class="graph-dot graph-finding"></i>发现</span>
+  </div>
+  <div class="graph-scroll">
+    <svg class="graph-svg" viewBox="0 0 {{.SVGWidth}} {{.SVGHeight}}" role="img" aria-label="任务探索图">
+      <defs>
+        <marker id="graph-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#526a83"/></marker>
+      </defs>
+      {{range .Edges}}<path class="graph-edge" d="M{{.X1}},{{.Y1}} C{{.X1}} {{.Y1}} {{.X2}} {{.Y2}} {{.X2}},{{.Y2}}" marker-end="url(#graph-arrow)"><title>{{.Rel}}</title></path>{{end}}
+      {{range .Nodes}}
+      <g class="graph-node {{.Class}}" tabindex="0" role="button"
+         data-label="{{.Label}}" data-detail="{{.Detail}}"
+         data-kind="{{graphKindLabel .Kind}}" data-state="{{graphStateLabel .State}}"
+         onclick="showGraphNode(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showGraphNode(this)}">
+        <title>{{.Label}} · {{graphKindLabel .Kind}} · {{graphStateLabel .State}}{{if .Detail}} — {{.Detail}}{{end}}</title>
+        <circle cx="{{.CX}}" cy="{{.CY}}" r="{{.R}}"></circle>
+        <text x="{{.CX}}" y="{{.CY}}" class="graph-label" text-anchor="middle" dy="-2">{{.Short}}</text>
+        <text x="{{.CX}}" y="{{.CY}}" class="graph-sub" text-anchor="middle" dy="14">{{graphKindLabel .Kind}}</text>
+      </g>
+      {{end}}
+    </svg>
+  </div>
+  {{else}}<div class="empty">暂无探索图节点。</div>{{end}}
+  {{end}}
+</section>
+
+<dialog id="graph-detail" class="modal graph-detail-modal">
+  <div class="modal-head"><h2 id="graph-detail-title">节点详情</h2><button class="modal-close" type="button" onclick="document.getElementById('graph-detail').close()">×</button></div>
+  <div class="modal-body">
+    <div class="graph-detail-meta"><span id="graph-detail-kind" class="badge"></span><span id="graph-detail-state" class="badge muted"></span></div>
+    <h3 id="graph-detail-label" class="graph-detail-label"></h3>
+    <pre id="graph-detail-text" class="graph-detail-text"></pre>
+  </div>
+</dialog>
+<script>
+function showGraphNode(el) {
+  document.getElementById('graph-detail-kind').textContent = el.dataset.kind || '';
+  document.getElementById('graph-detail-state').textContent = el.dataset.state || '';
+  document.getElementById('graph-detail-label').textContent = el.dataset.label || '';
+  document.getElementById('graph-detail-text').textContent = el.dataset.detail || '无更多详情';
+  document.getElementById('graph-detail').showModal();
+}
+</script>
+
+{{end}}
+
+{{if eq .Tab "flags"}}
+<section class="card">
+  <div class="card-head"><h2>Flag 记录</h2><span class="muted">按题目记录已找到或已提交的 flag</span></div>
+  {{if .Flags}}
+  <table class="table">
+    <thead><tr><th>题目</th><th>Flag</th><th>状态</th><th>来源</th><th>时间</th><th></th></tr></thead>
+    <tbody>
+    {{range .Flags}}
+      <tr>
+        <td><span class="mono">{{.Challenge}}</span></td>
+        <td><code class="flag-value">{{.Flag}}</code></td>
+        <td><span class="badge {{if eq .Status "submitted"}}ok{{else if eq .Status "accepted"}}ok{{else}}warn{{end}}">{{.Status}}</span></td>
+        <td>{{if eq .Source "finding"}}发现 #{{.FindingID}}{{else}}{{.Source}}{{end}}</td>
+        <td class="mono muted">{{shortTime .CreatedAt}}</td>
+        <td><form method="post" action="/tasks/{{$.Task.ID}}/flags/delete" onsubmit="return confirm('删除这条 flag 记录？')"><input type="hidden" name="id" value="{{.ID}}"><button class="tool-danger-btn" type="submit">删除</button></form></td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{template "pagination" .FlagPagination}}
+  {{else}}<div class="empty">还没有 flag 记录。可手动添加，或等待发现自动同步。</div>{{end}}
+  <form method="post" action="/tasks/{{.Task.ID}}/flags" class="flag-add-form">
+    <input name="challenge" placeholder="题目 / 编号，例如 d-01">
+    <input name="flag" placeholder="flag{...}" required>
+    <select name="status"><option value="found">已找到</option><option value="submitted">已提交</option><option value="accepted">已通过</option></select>
+    <button class="btn small primary" type="submit">添加 Flag</button>
+  </form>
+</section>
+{{end}}
+
+{{if eq .Tab "trace"}}
+<section class="stats trace-stats">
+  <div class="stat"><div class="stat-label">模型调用</div><div class="stat-value">{{.TraceCalls}}</div><div class="stat-sub">planner / worker / mainagent</div></div>
+  <div class="stat"><div class="stat-label">工具调用</div><div class="stat-value">{{.TraceTools}}</div><div class="stat-sub">每次请求携带的工具</div></div>
+  <div class="stat"><div class="stat-label">错误</div><div class="stat-value">{{.TraceErrors}}</div><div class="stat-sub">失败模型调用</div></div>
+</section>
+<section class="card trace-toolbar">
+  <div class="card-head">
+    <h2>解题溯源</h2>
+    <div class="trace-toolbar-actions">
+      <input id="trace-search" type="search" placeholder="搜索 Work / 模型 / 工具 / 提示词 / 输出…" autocomplete="off">
+      <label class="trace-error-toggle"><input id="trace-errors-only" type="checkbox"> 只看错误</label>
+    </div>
+  </div>
+</section>
+<div class="trace-work-nav">
+  {{range .TraceNav}}<a class="trace-challenge-{{.Status}}{{if eq $.TraceChallenge .Key}} active{{end}}" href="?tab=trace&challenge={{.Key}}">{{if .IsTaskLevel}}任务级规划{{else}}题目 {{.Title}}{{end}} <span class="muted">{{len .Calls}}</span></a>{{end}}
+</div>
+{{$root := .}}
+{{range .TraceGroups}}
+<section class="trace-group" data-trace-group id="challenge-{{.Key}}">
+  <div class="trace-group-head">
+    <div>
+      <span class="trace-anchor">题目 {{.Title}}</span>
+      {{if .IsTaskLevel}}<span class="muted">planner / mainagent / 无 Work</span>{{end}}
+      {{range .Works}}<span class="badge trace-work-badge">Work #{{.ID}} · {{.State}}</span>{{end}}
+    </div>
+    <div class="muted mono">{{len .Calls}} 次模型调用</div>
+  </div>
+  {{range .Calls}}
+  <article class="trace-call" id="llm-{{.Call.ID}}" data-trace-item data-error="{{if .IsError}}1{{else}}0{{end}}">
+    <div class="trace-call-head">
+      <div class="trace-call-title">
+        <a class="mono" href="#llm-{{.Call.ID}}">LLM #{{.Call.ID}}</a>
+        <span class="badge">{{roleLabel .Call.Role}}</span>
+        <span class="mono muted">{{.Call.Model}}</span>
+        <span class="muted">tokens {{.Usage}} · {{.Call.LatencyMS}} ms</span>
+        {{if .IsError}}<span class="badge bad">失败</span>{{end}}
+      </div>
+      <span class="muted mono">{{shortTime .Call.CreatedAt}}</span>
+    </div>
+    <details class="trace-details trace-system">
+      <summary>当前对话提示词</summary>
+      <div class="trace-system-body">
+        {{if .Prompt}}<pre>{{.Prompt}}</pre>{{else}}<div class="muted">无对话提示词</div>{{end}}
+      </div>
+    </details>
+    <div class="trace-raw-link"><a href="/llm-calls/{{.Call.ID}}">查看完整请求 / 响应 →</a><span class="muted">LLM #{{.Call.ID}}</span></div>
+    {{if .Call.Thinking}}<details class="trace-details"><summary>思考过程</summary><pre class="trace-pre">{{.Call.Thinking}}</pre></details>{{end}}
+    {{if .Call.ToolCallsJSON}}<details class="trace-details"><summary>工具调用</summary><pre class="trace-pre">{{.Call.ToolCallsJSON}}</pre></details>{{end}}
+    {{if .Call.Error}}<div class="notice warn trace-error">错误：{{.Call.Error}}</div>{{end}}
+    <div class="trace-tools-list">
+      <span class="trace-tools-label">本次携带工具（{{len .Tools}}）</span>
+      {{range .Tools}}<code class="trace-tool-chip">{{.}}</code>{{end}}
+    </div>
+  </article>
+  {{end}}
+  {{with $root.TracePagination}}{{template "pagination" .}}{{end}}
+  {{if not .Calls}}<div class="empty">此题目暂无调用记录。</div>{{end}}
+</section>
+{{else}}
+<div class="empty">{{if .TraceChallenge}}此题目暂无调用记录。{{else}}请选择上方题目，查看它的模型调用和当前对话提示词。{{end}}</div>
+{{end}}
+<script>
+(function () {
+  const items = Array.from(document.querySelectorAll('[data-trace-item]'));
+  const groups = Array.from(document.querySelectorAll('[data-trace-group]'));
+  const search = document.getElementById('trace-search');
+  const errorsOnly = document.getElementById('trace-errors-only');
+  function apply() {
+    const q = (search && search.value || '').trim().toLowerCase();
+    const onlyErrors = errorsOnly && errorsOnly.checked;
+    groups.forEach(function (group) {
+      let visible = 0;
+      group.querySelectorAll('[data-trace-item]').forEach(function (item) {
+        const hit = (!q || item.textContent.toLowerCase().includes(q)) && (!onlyErrors || item.dataset.error === '1');
+        item.hidden = !hit;
+        if (hit) visible++;
+      });
+      group.hidden = visible === 0;
+    });
+  }
+  if (search) search.addEventListener('input', apply);
+  if (errorsOnly) errorsOnly.addEventListener('change', apply);
+})();
+</script>
+{{end}}
+
+{{if eq .Tab "overview"}}
+<section class="stats">
+  <div class="stat">
+    <div class="stat-label">目标状态</div>
+    <div class="stat-value small">{{with .Goal}}{{statusLabel .State}}{{else}}—{{end}}</div>
+    <div class="stat-sub">目标内容不在界面展示</div>
+  </div>
+  <div class="stat"><div class="stat-label">意图</div><div class="stat-value">{{.IntentTotal}}</div><div class="stat-sub">已提议与已完成</div></div>
+  <div class="stat"><div class="stat-label">执行</div><div class="stat-value">{{.WorkTotal}}</div><div class="stat-sub">执行次数</div></div>
+  <div class="stat"><div class="stat-label">事实 / 发现</div><div class="stat-value">{{index .Counts "fact"}} / {{.FindingTotal}}</div><div class="stat-sub">探索图</div></div>
+</section>
+
+<div class="grid-2">
+  <section class="card">
+    <div class="card-head"><h2>时间线</h2></div>
+    {{if .Events}}
+    <table class="table compact">
+      <thead><tr><th>时间</th><th>事件</th><th>操作者</th></tr></thead>
+      <tbody>
+      {{range .Events}}
+        <tr><td class="mono">{{shortTime .CreatedAt}}</td><td><span class="badge muted">{{eventLabel .Type}}</span></td><td>{{roleLabel .ActorType}} <span class="muted mono">{{.ActorID}}</span></td></tr>
+      {{end}}
+      </tbody>
+    </table>
+    {{else}}<div class="empty">暂无事件。</div>{{end}}
+  </section>
+  <section class="card">
+    <div class="card-head"><h2>最新发现</h2><a class="link" href="?tab=findings">全部 →</a></div>
+    {{if .Findings}}
+    <table class="table compact">
+      <thead><tr><th>ID</th><th>等级</th><th>标题</th></tr></thead>
+      <tbody>
+      {{range .Findings}}
+        <tr><td class="mono">#{{.ID}}</td><td><span class="badge {{statusClass .Severity}}">{{riskLabel .Severity}}</span></td><td>{{.Title}}</td></tr>
+      {{end}}
+      </tbody>
+    </table>
+    {{else}}<div class="empty">暂无发现。</div>{{end}}
+  </section>
+</div>
+
+{{else if eq .Tab "plan"}}
+<section class="card">
+  <div class="card-head"><h2>目标重试状态</h2><span class="muted">cooldown / exhausted / 人工恢复</span></div>
+  {{if .TargetStates}}
+  <table class="table compact">
+    <thead><tr><th>Target</th><th>Attempts</th><th>Cooldown</th><th>Exhausted</th><th>最后失败原因</th><th>Solved</th><th>操作</th></tr></thead>
+    <tbody>{{range .TargetStates}}<tr>
+      <td class="mono">{{.Target}}</td><td class="mono">{{.Attempts}}</td>
+      <td>{{if .CooldownUntil}}<span class="badge warn">cooldown</span>{{else}}—{{end}}</td>
+      <td>{{if .Exhausted}}<span class="badge bad">exhausted</span>{{else}}—{{end}}</td>
+      <td class="muted small">{{if .ExhaustedReason}}{{.ExhaustedReason}}{{else}}{{.LastFailureReason}}{{end}}</td>
+      <td>{{if .Solved}}<span class="badge ok">solved</span>{{else}}—{{end}}</td>
+      <td><form method="post" action="/api/tasks/{{$.Task.ID}}/targets/{{.Target}}/recover" class="inline-form"><button class="btn small" type="submit">恢复</button></form></td>
+    </tr>{{end}}</tbody>
+  </table>
+  {{else}}<div class="empty">暂无 target 重试状态（任务未运行或尚未发生失败）。</div>{{end}}
+</section>
+<section class="card">
+  <div class="card-head"><h2>意图</h2><span class="muted">规划者是唯一意图生成者{{if gt .MaxContainers 0}} · 容器槽位 {{.ActiveContainers}}/{{.MaxContainers}}{{else}} · 容器槽位不限{{end}}</span></div>
+  {{if .Intents}}
+  <table class="table">
+    <thead><tr><th>ID</th><th>模式</th><th>优先级</th><th>风险</th><th>状态</th><th>意图</th><th>审批</th></tr></thead>
+    <tbody>
+    {{range .Intents}}
+      <tr>
+        <td class="mono">#{{.ID}}</td>
+        <td><span class="badge muted">{{.ExecutionMode}}</span></td>
+        <td class="mono">{{.Priority}}</td>
+        <td><span class="badge {{statusClass .Risk}}">{{riskLabel .Risk}}</span></td>
+        <td><span class="badge {{statusClass .State}}">{{intentLabel .State}}</span></td>
+        <td><div class="strong">{{.Summary}}</div><div class="muted small">{{.Rationale}}</div>
+          {{$plans := $.IntentPlans}}{{with index $plans .ID}}
+          <div class="plan-lane-info">
+            <span class="badge {{if eq .Run.Mode "shard"}}ok{{else}}run{{end}}">{{.Run.Mode}}</span>
+            <span class="muted small">lanes {{.Run.Lanes}} · quorum {{.Run.Quorum}}{{if .Run.PlannedBy}} · {{.Run.PlannedBy}}{{end}}{{if eq .Run.Mode "shard"}} · covered {{.CoveredAssets}}/{{.TotalAssets}}{{end}}</span>
+            {{$run := .Run}}{{range $i, $s := $run.Strategies}}<span class="badge muted">{{$s}}{{if lt $i (len $run.Briefs)}} · {{index $run.Briefs $i}}{{end}}</span>{{end}}
+            {{range .Lanes}}<span class="badge muted">{{.LaneID}} · {{.Status}}</span>{{end}}
+          </div>
+          {{end}}
+        </td>
+        <td class="mono">{{if .ApprovalID}}#{{.ApprovalID}}{{else}}—{{end}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}<div class="empty">暂无意图。planner 会在新事件到达时被唤醒。</div>{{end}}
+  {{template "pagination" .Pagination}}
+</section>
+
+{{else if eq .Tab "conflicts"}}
+<section class="card">
+  <div class="card-head"><h2>冲突裁决</h2><span class="muted">只隔离争议项，不阻塞整个任务</span></div>
+  {{if .Conflicts}}
+  <table class="table compact">
+    <thead><tr><th>ID</th><th>类型</th><th>主题</th><th>Lane</th><th>状态</th><th>决定</th><th>原因</th><th>操作</th></tr></thead>
+    <tbody>{{range .Conflicts}}<tr><td class="mono">#{{.ID}}</td><td class="mono">{{.Type}}</td><td class="mono">{{.Subject}}</td><td class="mono">{{range .LaneIDs}}{{.}} {{end}}</td><td><span class="badge {{if eq .Status "needs_human"}}warn{{else if eq .Status "quarantined"}}bad{{else}}ok{{end}}">{{.Status}}</span></td><td>{{.Decision}}</td><td class="muted">{{.Reason}}</td><td><form method="post" action="/tasks/{{$.Task.ID}}/conflicts/{{.ID}}/resolve" class="inline-form"><select name="decision"><option value="keep_all">保留</option><option value="quarantine_all">隔离</option><option value="needs_human">人工复核</option></select><button class="btn small" type="submit">裁决</button></form></td></tr>{{end}}</tbody>
+  </table>
+  {{else}}<div class="empty">暂无冲突。不同 flag 和同 flag 多 lane 命中不会被视为冲突。</div>{{end}}
+</section>
+
+{{else if eq .Tab "quarantine"}}
+<section class="card">
+  <div class="card-head"><h2>隔离结果</h2><span class="muted">失败 / 迟到 / 未确认结果，保留但不自动提交</span></div>
+  {{if .Quarantine}}
+  <table class="table compact">
+    <thead><tr><th>ID</th><th>Lane</th><th>来源</th><th>原因</th><th>摘要</th><th>候选 Flag</th><th>状态</th><th>操作</th></tr></thead>
+    <tbody>
+    {{range .Quarantine}}
+      <tr>
+        <td class="mono">Q{{.ID}}</td>
+        <td class="mono">{{if .LaneID}}{{.LaneID}}{{else}}—{{end}}</td>
+        <td><span class="badge muted">{{.SourceKind}}</span></td>
+        <td class="muted">{{.Reason}}</td>
+        <td>{{.Summary}}{{if .PayloadJSON}}<details><summary class="muted small">查看原始结果</summary><pre class="quarantine-raw">{{.PayloadJSON}}</pre></details>{{end}}</td>
+        <td class="mono">{{range .CandidateFlags}}<span class="badge warn">{{.}}</span> {{end}}</td>
+        <td><span class="badge muted">{{.Status}}</span></td>
+        <td><div class="inline-form"><form method="post" action="/tasks/{{$.Task.ID}}/quarantine/{{.ID}}/promote"><button class="btn small primary" type="submit" {{if eq .Status "promoted"}}disabled{{end}}>提升为证据</button></form><form method="post" action="/tasks/{{$.Task.ID}}/quarantine/{{.ID}}/status"><select name="status"><option value="promoted" {{if eq .Status "promoted"}}selected{{end}}>标记复核</option><option value="dismissed" {{if eq .Status "dismissed"}}selected{{end}}>忽略</option><option value="open" {{if eq .Status "open"}}selected{{end}}>重新打开</option></select><button class="btn small" type="submit">更新</button></form></div></td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{template "pagination" .QuarantinePagination}}
+{{else}}<div class="empty">暂无隔离结果。失败、迟到或未确认 flag 的 lane 结果会出现在这里。</div>{{end}}
+</section>
+
+
+{{else if eq .Tab "sessions"}}
+{{if .Works}}
+<section class="card">
+  <div class="card-head"><h2>执行会话</h2></div>
+  <table class="table">
+    <thead><tr><th>ID</th><th>意图</th><th>Lane</th><th>执行者</th><th>状态</th><th>开始</th><th>结束</th></tr></thead>
+    <tbody>
+    {{range .Works}}
+      <tr>
+        <td class="mono">#{{.ID}}</td>
+        <td class="mono">#{{.IntentID}}</td>
+        <td>{{if .LaneID}}<a class="mono" href="/tasks/{{$.Task.ID}}/lanes/{{.ID}}">{{.LaneID}}</a>{{else}}—{{end}}</td>
+        <td>{{.WorkerID}}</td>
+        <td><span class="badge {{statusClass .State}}">{{intentLabel .State}}</span></td>
+        <td class="mono">{{with .StartedAt}}{{.Format "15:04:05"}}{{end}}</td>
+        <td class="mono">{{with .EndedAt}}{{.Format "15:04:05"}}{{end}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{template "pagination" .WorkPagination}}
+</section>
+{{else}}<div class="empty-inline">暂无执行会话。</div>{{end}}
+
+{{if .Swarms}}
+<section class="card">
+  <div class="card-head"><h2>蜂群</h2><span class="muted">同一 Intent 的多 lane 与合并状态</span></div>
+  {{range .Swarms}}
+  <div class="swarm-card">
+    <div class="swarm-head"><strong>{{if eq .Run.Mode "shard"}}Shard{{else}}Swarm{{end}} #{{.Run.ID}} · Intent #{{.Run.IntentID}}</strong>
+      <span class="badge {{if eq .Run.State "done"}}ok{{else if eq .Run.State "failed"}}bad{{else}}run{{end}}">{{.Run.State}}</span>
+      <span class="muted">lanes {{.Run.Lanes}} · quorum {{.Run.Quorum}}{{if .Run.PlannedBy}} · planned by {{.Run.PlannedBy}}{{end}}</span>
+    </div>
+    {{if eq .Run.Mode "shard"}}<div class="muted small" style="margin-bottom:6px;">资产覆盖 {{.CoveredAssets}} / {{.TotalAssets}}{{if .FailedLanes}} · 未完成 lane：{{range $i, $l := .FailedLanes}}{{if $i}}、{{end}}{{$l}}{{end}}{{end}}</div>{{end}}
+    <table class="table compact">
+      <thead><tr><th>Lane</th><th>Work</th><th>资产</th><th>状态</th><th>策略</th><th>Lane Brief</th></tr></thead>
+      <tbody>
+      {{$run := .Run}}{{range $i, $l := .Lanes}}<tr><td class="mono"><a href="/tasks/{{$.Task.ID}}/lanes/{{$l.WorkID}}">{{$l.LaneID}}</a></td><td class="mono">#{{$l.WorkID}}</td><td class="mono">{{if lt $i (len $run.LaneAssets)}}{{len (index $run.LaneAssets $i)}}{{else}}—{{end}}</td><td><span class="badge {{statusClass $l.Status}}">{{$l.Status}}</span></td><td class="mono">{{index $run.Strategies $i}}</td><td class="muted">{{if lt $i (len $run.Briefs)}}{{index $run.Briefs $i}}{{end}}</td></tr>{{end}}
+      </tbody>
+    </table>
+  </div>
+  {{end}}
+</section>
+{{end}}
+
+<section class="card">
+  <div class="card-head"><h2>模型追踪</h2><span class="muted">prompt / 思考 / 工具调用 / 工具结果</span><a class="link" href="/llm-records?task={{.Task.ID}}">LLM 记录 →</a></div>
+  {{if .Activities}}
+  <table class="table compact">
+    <thead><tr><th>时间</th><th>角色</th><th>类型 / 工具</th><th>摘要 / 详情</th></tr></thead>
+    <tbody>
+    {{range .Activities}}
+      <tr>
+        <td class="mono">{{shortTime .CreatedAt}}</td>
+        <td>{{roleLabel .Role}}</td>
+        <td><span class="badge muted">{{activityLabel .Kind}}</span>{{if .Tool}} <span class="badge">{{.Tool}}</span>{{end}}</td>
+        <td>
+          <div>{{.Summary}}</div>
+          {{if .Detail}}<details><summary class="trace-toggle">详情</summary><pre class="trace-detail">{{.Detail}}</pre></details>{{end}}
+        </td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}<div class="empty">暂无模型追踪。真实模型运行时会显示 prompt / 思考 / 工具调用 / 工具结果；fake 运行模式不产生这些事件。</div>{{end}}
+  {{template "pagination" .Pagination}}
+</section>
+
+{{else if eq .Tab "approvals"}}
+<section class="card">
+  <div class="card-head"><h2>待审批意图</h2><span class="muted">只审批意图，不审批工具</span></div>
+  {{if .Pending}}
+  <table class="table">
+    <thead><tr><th>ID</th><th>意图</th><th>风险</th><th>操作</th></tr></thead>
+    <tbody>
+    {{range .Pending}}
+      <tr>
+        <td class="mono">#{{.ID}}</td>
+        <td>{{with index $.IntentByID .IntentID}}<span class="mono">#{{.ID}}</span> {{.Summary}}{{else}}#{{.IntentID}}{{end}}</td>
+        <td><span class="badge {{statusClass .Risk}}">{{riskLabel .Risk}}</span></td>
+        <td class="approval-actions">
+          <form method="post" action="/tasks/{{$.Task.ID}}/approvals/{{.ID}}">
+            <input type="hidden" name="decision" value="approved">
+            <button class="btn ok" type="submit">通过</button>
+          </form>
+          <form method="post" action="/tasks/{{$.Task.ID}}/approvals/{{.ID}}">
+            <input type="hidden" name="decision" value="rejected">
+            <button class="btn danger" type="submit">拒绝</button>
+          </form>
+        </td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}<div class="empty">暂无待审批意图。CTF 模式会自动通过所有意图。</div>{{end}}
+  {{template "pagination" .Pagination}}
+</section>
+
+{{else if eq .Tab "findings"}}
+<section class="card">
+  <div class="card-head"><h2>发现</h2></div>
+  {{if .Findings}}
+  <table class="table">
+    <thead><tr><th>ID</th><th>等级</th><th>标题</th><th>证据</th></tr></thead>
+    <tbody>
+    {{range .Findings}}
+      <tr><td class="mono">#{{.ID}}</td><td><span class="badge {{statusClass .Severity}}">{{riskLabel .Severity}}</span></td><td>{{.Title}}</td><td class="mono">{{.Evidence}}</td></tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}<div class="empty">暂无发现。</div>{{end}}
+  {{template "pagination" .Pagination}}
+</section>
+
+{{else if eq .Tab "assets"}}
+<section class="card">
+  <div class="card-head"><h2>资产</h2><span class="muted">全局资产图</span></div>
+  {{if .Assets}}
+  <table class="table">
+    <thead><tr><th>ID</th><th>类型</th><th>值</th><th>范围</th><th>来源</th></tr></thead>
+    <tbody>
+    {{range .Assets}}
+      <tr><td class="mono">#{{.ID}}</td><td><span class="badge muted">{{assetTypeLabel .Type}}</span></td><td class="mono">{{.Value}}</td><td>{{scopeLabel .ScopeStatus}}</td><td>{{.Source}}</td></tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}<div class="empty">暂无资产。</div>{{end}}
+  {{template "pagination" .Pagination}}
+</section>
+
+{{else if eq .Tab "report"}}
+<section class="card">
+  <div class="card-head">
+    <h2>报告</h2>
+    <a class="btn" href="/tasks/{{.Task.ID}}/export">下载完整报告</a>
+  </div>
+  {{if .ReportRows}}
+  <table class="table">
+    <thead><tr><th>漏洞类型</th><th>漏洞描述</th><th>对应资产</th></tr></thead>
+    <tbody>
+    {{range .ReportRows}}
+      <tr><td>{{.VulnType}}</td><td class="report-desc">{{.Description}}</td><td class="mono">{{.Assets}}</td></tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{template "pagination" .ReportPagination}}
+  {{else}}<div class="empty">暂无漏洞报告数据。</div>{{end}}
+</section>
+
+{{else if eq .Tab "events"}}
+<section class="card">
+  <div class="card-head"><h2>事件日志</h2></div>
+  {{if .Events}}
+  <table class="table compact">
+    <thead><tr><th>ID</th><th>时间</th><th>事件</th><th>操作者</th><th>对象</th></tr></thead>
+    <tbody>
+    {{range .Events}}
+      <tr><td class="mono">#{{.ID}}</td><td class="mono">{{shortTime .CreatedAt}}</td><td><span class="badge muted">{{eventLabel .Type}}</span></td><td>{{roleLabel .ActorType}} <span class="muted mono">{{.ActorID}}</span></td><td class="mono">{{subjectLabel .SubjectType}} {{if .SubjectID}}#{{.SubjectID}}{{end}}</td></tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}<div class="empty">暂无事件。</div>{{end}}
+  {{template "pagination" .Pagination}}
+</section>
+{{end}}
+{{end}}

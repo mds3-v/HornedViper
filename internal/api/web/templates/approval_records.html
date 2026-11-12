@@ -1,0 +1,65 @@
+{{define "content"}}
+{{if .TaskGroups}}
+<section class="card">
+  <div class="card-head"><h2>任务审批记录</h2><span class="muted">按任务 ID 划分</span></div>
+  <table class="table">
+    <thead><tr><th>任务</th><th>记录数</th><th>最近审批</th></tr></thead>
+    <tbody>
+    {{range .TaskGroups}}
+      <tr>
+        <td><a href="{{.URL}}">{{if .Title}}{{.Title}}{{else}}#{{.TaskID}}{{end}}</a><div class="muted mono">#{{.TaskID}}</div></td>
+        <td>{{.Count}}</td>
+        <td class="mono">{{shortTime .LastAt}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{template "pagination" .TaskPagination}}
+</section>
+{{else}}
+<section class="card">
+  <div class="card-head">
+    <h2>{{if .GroupTitle}}{{.GroupTitle}}{{else}}全部记录{{end}}</h2>
+    {{if .Mode}}<a class="link" href="{{.BackURL}}">← 返回审批记录项目</a>{{else}}<span class="muted">共 {{.Pagination.Total}} 条</span>{{end}}
+  </div>
+  <form method="get" action="/approval-records" class="traffic-search">
+    <input type="hidden" name="task" value="{{.FilterTaskID}}">
+    <input type="search" name="q" value="{{.SearchQuery}}" placeholder="模糊搜索意图 / 任务 / 决定 / 理由">
+    <button class="btn small" type="submit">搜索</button>
+    {{if .SearchQuery}}<a class="link" href="{{.SearchClearURL}}">清除</a>{{end}}
+    <span class="muted">共 {{.Pagination.Total}} 条</span>
+  </form>
+  {{if .Approvals}}
+  <table class="table approval-records-table">
+    <colgroup>
+      <col style="width:64px">
+      <col style="width:110px">
+      <col style="width:72px">
+      <col style="width:92px">
+      <col style="width:28%">
+      <col>
+      <col style="width:112px">
+    </colgroup>
+    <thead><tr><th>ID</th><th>任务</th><th>风险</th><th>决定</th><th>意图</th><th>理由</th><th>时间</th></tr></thead>
+    <tbody>
+    {{range .Approvals}}
+      <tr>
+        <td class="mono">#{{.Approval.ID}}</td>
+        <td><a href="/tasks/{{.Approval.TaskID}}">{{.TaskTitle}}</a></td>
+        <td><span class="badge {{statusClass .Approval.Risk}}">{{riskLabel .Approval.Risk}}</span></td>
+        <td>
+          <span class="badge {{statusClass .Approval.Decision}}">{{statusLabel .Approval.Decision}}</span>
+          {{if .Approval.DecidedBy}}<div class="muted small mono">{{.Approval.DecidedBy}}</div>{{end}}
+        </td>
+        <td><span class="mono">#{{.Approval.IntentID}}</span> {{.IntentSummary}}</td>
+        <td>{{if .Approval.Reason}}{{.Approval.Reason}}{{else}}—{{end}}</td>
+        <td class="mono">{{shortTime .Approval.CreatedAt}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}<div class="empty">{{if .SearchQuery}}没有匹配的审批记录。{{else}}暂无审批记录。{{end}}</div>{{end}}
+  {{template "pagination" .Pagination}}
+</section>
+{{end}}
+{{end}}

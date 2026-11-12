@@ -1,0 +1,67 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "WorkResult",
+  "type": "object",
+  "required": ["status"],
+  "additionalProperties": false,
+  "properties": {
+    "status": { "enum": ["done", "blocked", "failed"] },
+    "error": { "type": "string" },
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "value"],
+        "additionalProperties": false,
+        "properties": {
+          "type": { "type": "string" },
+          "value": { "type": "string" },
+          "metadata": { "type": "object" }
+        }
+      }
+    },
+    "facts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["summary", "detail", "evidence", "confidence"],
+        "additionalProperties": false,
+        "properties": {
+          "summary": { "type": "string", "minLength": 1 },
+          "detail": { "type": "string" },
+          "evidence": { "type": "string", "minLength": 1 },
+          "confidence": { "enum": ["observed", "inferred"] },
+          "asset_ids": { "type": "array", "items": { "type": "integer" } }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["title", "severity", "evidence"],
+        "additionalProperties": false,
+        "properties": {
+          "title": { "type": "string", "minLength": 1 },
+          "severity": { "enum": ["info", "low", "medium", "high", "critical"] },
+          "evidence": { "type": "string", "minLength": 1 },
+          "asset_ids": { "type": "array", "items": { "type": "integer" } }
+        }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "path"],
+        "additionalProperties": false,
+        "properties": {
+          "type": { "type": "string" },
+          "path": { "type": "string" },
+          "hash": { "type": "string" },
+          "bytes": { "type": "integer" }
+        }
+      }
+    }
+  }
+}

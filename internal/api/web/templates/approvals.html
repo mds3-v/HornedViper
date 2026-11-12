@@ -1,0 +1,61 @@
+{{define "content"}}
+{{if .TaskGroups}}
+<section class="card">
+  <div class="card-head"><h2>任务审批</h2><span class="muted">按任务 ID 划分</span></div>
+  <table class="table">
+    <thead><tr><th>任务</th><th>待审批</th><th>最近请求</th></tr></thead>
+    <tbody>
+    {{range .TaskGroups}}
+      <tr>
+        <td><a href="{{.URL}}">{{if .Title}}{{.Title}}{{else}}#{{.TaskID}}{{end}}</a><div class="muted mono">#{{.TaskID}}</div></td>
+        <td>{{.Count}}</td>
+        <td class="mono">{{shortTime .LastAt}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{template "pagination" .TaskPagination}}
+</section>
+{{else}}
+<section class="card">
+  <div class="card-head">
+    <h2>{{if .GroupTitle}}{{.GroupTitle}}{{else}}待审批意图{{end}}</h2>
+    {{if .Mode}}<a class="link" href="{{.BackURL}}">← 返回审批项目</a>{{else}}<span class="muted">{{.Pagination.Total}} 个等待中</span>{{end}}
+  </div>
+  <form method="get" action="/approvals" class="traffic-search">
+    <input type="hidden" name="task" value="{{.FilterTaskID}}">
+    <input type="search" name="q" value="{{.SearchQuery}}" placeholder="模糊搜索意图 / 任务 / 风险">
+    <button class="btn small" type="submit">搜索</button>
+    {{if .SearchQuery}}<a class="link" href="{{.SearchClearURL}}">清除</a>{{end}}
+    <span class="muted">共 {{.Pagination.Total}} 条</span>
+  </form>
+  {{if .Approvals}}
+  <table class="table">
+    <thead><tr><th>任务</th><th>意图</th><th>风险</th><th>操作</th></tr></thead>
+    <tbody>
+    {{range .Approvals}}
+      <tr>
+        <td><a href="/tasks/{{.Approval.TaskID}}">{{.TaskTitle}}</a><div class="muted mono">#{{.Approval.TaskID}}</div></td>
+        <td><span class="mono">#{{.Approval.IntentID}}</span> {{.IntentSummary}}</td>
+        <td><span class="badge {{statusClass .Approval.Risk}}">{{riskLabel .Approval.Risk}}</span></td>
+        <td class="approval-actions">
+          <form method="post" action="/tasks/{{.Approval.TaskID}}/approvals/{{.Approval.ID}}">
+            <input type="hidden" name="decision" value="approved">
+            <input type="hidden" name="next" value="/approvals">
+            <button class="btn ok" type="submit">通过</button>
+          </form>
+          <form method="post" action="/tasks/{{.Approval.TaskID}}/approvals/{{.Approval.ID}}">
+            <input type="hidden" name="decision" value="rejected">
+            <input type="hidden" name="next" value="/approvals">
+            <button class="btn danger" type="submit">拒绝</button>
+          </form>
+        </td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}<div class="empty">{{if .SearchQuery}}没有匹配的审批。{{else}}暂无待审批意图。{{end}}</div>{{end}}
+  {{template "pagination" .Pagination}}
+</section>
+{{end}}
+{{end}}

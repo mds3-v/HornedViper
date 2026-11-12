@@ -1,0 +1,26 @@
+{{define "content"}}
+<section class="page-head">
+  <div><h1>事件</h1><p>全局 workflow 事件日志。</p></div>
+</section>
+<section class="card">
+  <div class="card-head"><h2>最近事件</h2><span class="muted">共 {{.Pagination.Total}} 条 · 最新在前</span></div>
+  {{if .Events}}
+  <table class="table compact">
+    <thead><tr><th>ID</th><th>时间</th><th>任务</th><th>事件</th><th>操作者</th><th>对象</th></tr></thead>
+    <tbody>
+    {{range .Events}}
+      <tr>
+        <td class="mono">#{{.ID}}</td>
+        <td class="mono">{{shortTime .CreatedAt}}</td>
+        <td><a href="/tasks/{{.TaskID}}">#{{.TaskID}}</a></td>
+        <td><span class="badge muted">{{eventLabel .Type}}</span></td>
+        <td>{{roleLabel .ActorType}}</td>
+        <td class="mono">{{subjectLabel .SubjectType}} {{if .SubjectID}}#{{.SubjectID}}{{end}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}<div class="empty">暂无事件。</div>{{end}}
+  {{template "pagination" .Pagination}}
+</section>
+{{end}}

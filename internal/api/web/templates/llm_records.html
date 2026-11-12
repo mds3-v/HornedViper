@@ -1,0 +1,125 @@
+{{define "content"}}
+{{if or .TaskGroups .ConversationGroups}}
+<section class="card">
+  <div class="card-head"><h2>任务 LLM 记录</h2><span class="muted">按任务 ID 划分</span></div>
+  {{if .TaskGroups}}
+  <table class="table">
+    <thead><tr><th>任务</th><th>调用数</th><th>最近调用</th></tr></thead>
+    <tbody>
+    {{range .TaskGroups}}
+      <tr>
+        <td><a href="{{.URL}}">{{if .Title}}{{.Title}}{{else}}#{{.TaskID}}{{end}}</a><div class="muted mono">#{{.TaskID}}</div></td>
+        <td>{{.Count}}</td>
+        <td class="mono">{{shortTime .LastAt}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}<div class="empty">暂无任务 LLM 记录。</div>{{end}}
+  {{template "pagination" .TaskPagination}}
+</section>
+<section class="card">
+  <div class="card-head"><h2>新会话 LLM 记录</h2><span class="muted">按新会话 ID 划分</span></div>
+  {{if .ConversationGroups}}
+  <table class="table">
+    <thead><tr><th>新会话</th><th>调用数</th><th>最近调用</th></tr></thead>
+    <tbody>
+    {{range .ConversationGroups}}
+      <tr>
+        <td><a href="{{.URL}}">{{if .Title}}{{.Title}}{{else}}#{{.ConversationID}}{{end}}</a><div class="muted mono">#{{.ConversationID}}</div></td>
+        <td>{{.Count}}</td>
+        <td class="mono">{{shortTime .LastAt}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}<div class="empty">暂无新会话 LLM 记录。</div>{{end}}
+  {{template "pagination" .ConversationPagination}}
+</section>
+{{else}}
+<section class="card">
+  <div class="card-head">
+    <h2>{{if .GroupTitle}}{{.GroupTitle}}{{else}}调用记录{{end}}</h2>
+    {{if .Mode}}<a class="link" href="{{.BackURL}}">← 返回 LLM 项目</a>{{else}}<span class="muted">共 {{.Pagination.Total}} 条</span>{{end}}
+  </div>
+  <form method="get" action="/llm-records" class="traffic-search">
+    <input type="hidden" name="task" value="{{.FilterTaskID}}">
+    <input type="hidden" name="conversation" value="{{.FilterConversationID}}">
+    <input type="search" name="q" value="{{.SearchQuery}}" placeholder="模糊搜索模型 / 请求 / 响应 / 思考 / 工具调用">
+    <button class="btn small" type="submit">搜索</button>
+    {{if .SearchQuery}}<a class="link" href="{{.SearchClearURL}}">清除</a>{{end}}
+    <span class="muted">共 {{.Pagination.Total}} 条</span>
+  </form>
+  {{if .Calls}}
+  <table class="table">
+    <thead><tr><th>时间</th><th>来源</th><th>角色</th><th>模型</th><th>Token</th><th>延迟</th><th>状态</th></tr></thead>
+    <tbody>
+    {{range $i, $c := .Calls}}
+      <tr class="llm-row" id="llm-{{$c.Call.ID}}" data-target="llm-detail-{{$i}}" tabindex="0" title="点击查看请求 / 响应">
+        <td class="mono">{{shortTime $c.Call.CreatedAt}}</td>
+        <td>{{if $c.Call.ConversationID}}<a href="/conversation/{{$c.Call.ConversationID}}">会话 #{{$c.Call.ConversationID}}</a> {{$c.ConversationTitle}}{{else}}<a href="/tasks/{{$c.Call.TaskID}}">#{{$c.Call.TaskID}}</a> {{$c.TaskTitle}}{{end}}</td>
+        <td>{{roleLabel $c.Call.Role}}</td>
+        <td><span class="mono">{{$c.Call.Model}}</span><div class="muted mono">{{$c.Call.Provider}}</div></td>
+        <td class="mono">{{$c.InputTokens}} / {{$c.OutputTokens}}</td>
+        <td class="mono">{{$c.Call.LatencyMS}} ms</td>
+        <td>{{if $c.Call.Error}}<span class="badge bad">失败</span>{{else}}<span class="badge ok">完成</span>{{end}}</td>
+      </tr>
+      <tr id="llm-detail-{{$i}}" class="llm-detail-row" hidden>
+        <td colspan="7">
+          <div class="traffic-detail-grid">
+            <div class="traffic-pane">
+              <h4>请求</h4>
+              <pre>{{$c.Call.RequestJSON}}</pre>
+            </div>
+            <div class="traffic-pane">
+              <h4>响应</h4>
+              <pre>{{$c.Call.ResponseJSON}}</pre>
+            </div>
+          </div>
+          {{if $c.Call.Thinking}}<div class="llm-extra"><h4>思考</h4><pre>{{$c.Call.Thinking}}</pre></div>{{end}}
+          {{if $c.Call.ToolCallsJSON}}<div class="llm-extra"><h4>工具调用</h4><pre>{{$c.Call.ToolCallsJSON}}</pre></div>{{end}}
+          {{if $c.Call.Error}}<div class="llm-extra"><h4>错误</h4><pre>{{$c.Call.Error}}</pre></div>{{end}}
+        </td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}<div class="empty">{{if .SearchQuery}}没有匹配的 LLM 记录。{{else}}暂无 LLM 调用记录。真实模型运行后会自动写入。{{end}}</div>{{end}}
+  {{template "pagination" .Pagination}}
+</section>
+{{end}}
+
+<script>
+(function () {
+  function toggleRow(row) {
+    const detail = document.getElementById(row.dataset.target);
+    if (!detail) return;
+    detail.hidden = !detail.hidden;
+    row.classList.toggle('expanded', !detail.hidden);
+  }
+  function openHash() {
+    const id = decodeURIComponent(location.hash.replace(/^#/, ''));
+    if (!id) return;
+    const row = document.getElementById(id);
+    if (!row) return;
+    const detail = document.getElementById(row.dataset.target);
+    if (detail && detail.hidden) toggleRow(row);
+    row.scrollIntoView({block: 'center'});
+  }
+  openHash();
+  window.addEventListener('hashchange', openHash);
+  document.addEventListener('click', function (event) {
+    if (event.target.closest('a')) return;
+    const row = event.target.closest('.llm-row');
+    if (row) toggleRow(row);
+  });
+  document.addEventListener('keydown', function (event) {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const row = event.target.closest('.llm-row');
+    if (!row) return;
+    event.preventDefault();
+    toggleRow(row);
+  });
+})();
+</script>
+{{end}}

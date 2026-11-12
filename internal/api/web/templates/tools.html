@@ -1,0 +1,296 @@
+{{define "content"}}
+<section class="page-head tool-page-head">
+  <div>
+    <h1>工具管理</h1>
+    <p>管理内置工具和自定义 HTTP 工具。开关只影响新请求，不会中断正在运行的任务。</p>
+  </div>
+  <div class="tool-head-actions">
+    <span class="badge ok">{{.Active}} 已启用</span>
+    <span class="badge">{{.Total}} 个工具</span>
+    <button id="tool-add" class="tool-primary-btn" type="button">＋ 新增工具</button>
+    <a class="tool-mini-btn" href="/tools{{if .ShowArchived}}{{else}}?archived=1{{end}}">{{if .ShowArchived}}隐藏已移除{{else}}已移除工具{{end}}</a>
+    <button id="tool-expand-all" class="tool-mini-btn" type="button">全部展开</button>
+    <button id="tool-collapse-all" class="tool-mini-btn" type="button">全部收起</button>
+  </div>
+</section>
+
+{{if .Error}}<div class="notice warn">{{.Error}}</div>{{end}}
+
+<div class="tools-shell">
+  <aside class="tools-side">
+    <div class="tools-side-title">工具分类</div>
+    <button class="tools-side-item active" type="button" data-scope-filter="all">
+      <span>全部工具</span><span class="tools-side-count">{{.Active}}/{{.Total}}</span>
+    </button>
+    <div class="tools-side-title tools-side-subtitle">AGENT 工具</div>
+    {{range .Groups}}
+    <button class="tools-side-item tools-side-child" type="button" data-scope-filter="{{.Scope}}">
+      <span>{{.Title}}</span><span class="tools-side-count">{{.Active}}/{{.Total}}</span>
+    </button>
+    {{end}}
+    {{range .AgentGroups}}
+    <button class="tools-side-item tools-side-child" type="button" data-scope-filter="{{.Scope}}">
+      <span>{{.Title}}</span><span class="tools-side-count">{{.Total}}</span>
+    </button>
+    {{end}}
+    <div class="tools-side-note">内置工具由程序提供；自定义工具使用 HTTP 执行。核心工具不可关闭或删除。</div>
+  </aside>
+
+  <div class="tools-main">
+    <div class="tools-searchbar">
+      <input id="tool-search" class="tool-search" type="search" placeholder="搜索工具名或描述…" autocomplete="off">
+      <span class="muted" id="tool-visible-count"></span>
+    </div>
+
+    {{range .Groups}}
+    <section class="tool-group" data-group="{{.Scope}}" id="group-{{.Scope}}">
+      <div class="tool-group-head">
+        <div>
+          <h2>{{.Title}}</h2>
+          <p class="muted">{{.Description}}</p>
+        </div>
+        <span class="tool-group-count">{{.Active}} / {{.Total}} 已启用</span>
+      </div>
+      <div class="tool-card-grid">
+        {{range .Rows}}
+        {{with .Tool}}
+        <details class="tool-card {{if not .Enabled}}tool-card-off{{end}}"
+                 data-scope="{{.Scope}}"
+                 data-search="{{.Name}} {{.Display}} {{.Description}} {{.Category}}">
+          <summary class="tool-card-head">
+            <span class="tool-card-title-row">
+              <span class="tool-card-title">{{.Display}}</span>
+              <span class="tool-state {{if .Enabled}}on{{else}}off{{end}}">{{if .Enabled}}已启用{{else}}已停用{{end}}</span>
+              {{if not .Builtin}}<span class="tool-custom-badge">自定义</span>{{end}}
+              <span class="tool-card-chevron" aria-hidden="true">⌄</span>
+            </span>
+            <span class="tool-card-desc">{{.Description}}</span>
+            <span class="tool-card-meta">
+              <code>{{.Name}}</code>
+              {{if .Category}}<span class="tool-cat">{{.Category}}</span>{{end}}
+            </span>
+          </summary>
+          <div class="tool-card-body">
+            <div class="tool-detail-row"><span>分类</span><strong>{{if .Category}}{{.Category}}{{else}}未分类{{end}}</strong></div>
+            <div class="tool-detail-row"><span>内部名称</span><code>{{.Name}}</code></div>
+            <div class="tool-detail-row"><span>类型</span><span>{{.Kind}}</span></div>
+            <div class="tool-detail-row"><span>状态</span><strong class="{{if .Enabled}}text-ok{{else}}text-off{{end}}">{{if .Enabled}}已启用{{else}}已停用{{end}}</strong></div>
+            <div class="tool-card-action">
+              {{if .Essential}}
+                <span class="badge warn">核心工具 · 不可关闭</span>
+              {{else}}
+                <button type="button" class="tool-edit-btn"
+                  data-id="{{.ID}}" data-scope="{{.Scope}}" data-name="{{.Name}}"
+                  data-display="{{.Display}}" data-description="{{.Description}}"
+                  data-category="{{.CategoryID}}" data-kind="{{.Kind}}"
+                  data-config="{{.ConfigJSON}}" data-enabled="{{if .Enabled}}1{{else}}0{{end}}"
+                  data-builtin="{{if .Builtin}}1{{else}}0{{end}}">编辑</button>
+                <form method="post" action="/tools/toggle" class="tool-toggle-form">
+                  <input type="hidden" name="id" value="{{.ID}}">
+                  <button class="tool-switch {{if .Enabled}}on{{end}}" type="submit">
+                    <span class="tool-switch-dot"></span>{{if .Enabled}}关闭工具{{else}}启用工具{{end}}
+                  </button>
+                </form>
+                <form method="post" action="/tools/delete" class="tool-toggle-form" onsubmit="return confirm('确认移除此工具？')">
+                  <input type="hidden" name="id" value="{{.ID}}">
+                  <button class="tool-danger-btn" type="submit">移除</button>
+                </form>
+              {{end}}
+            </div>
+          </div>
+        </details>
+        {{end}}
+        {{end}}
+      </div>
+    </section>
+    {{end}}
+
+    {{$root := .}}
+    {{range .AgentGroups}}
+    {{$g := .}}
+    <section class="tool-group" data-group="{{.Scope}}" id="group-{{.Scope}}">
+      <div class="tool-group-head">
+        <div>
+          <h2>{{.Title}} <span class="tool-custom-badge">Agent</span></h2>
+          <p class="muted">{{.Description}}</p>
+        </div>
+        <span class="tool-group-count">{{.Active}} / {{.Total}} 已启用</span>
+      </div>
+      <div class="tool-card-grid">
+        {{range .Rows}}
+        {{with .Tool}}
+        <details class="tool-card {{if not .Enabled}}tool-card-off{{end}}"
+                 data-scope="{{$g.Scope}}"
+                 data-search="{{.Name}} {{.Display}} {{.Description}} {{.Category}}">
+          <summary class="tool-card-head">
+            <span class="tool-card-title-row">
+              <span class="tool-card-title">{{.Display}}</span>
+              <span class="tool-state {{if .Enabled}}on{{else}}off{{end}}">{{if .Enabled}}已启用{{else}}已停用{{end}}</span>
+              <span class="tool-card-chevron" aria-hidden="true">⌄</span>
+            </span>
+            <span class="tool-card-desc">{{.Description}}</span>
+            <span class="tool-card-meta"><code>{{.Name}}</code>{{if .Category}}<span class="tool-cat">{{.Category}}</span>{{end}}</span>
+          </summary>
+          <div class="tool-card-body">
+            <div class="tool-detail-row"><span>分类</span><strong>{{if .Category}}{{.Category}}{{else}}未分类{{end}}</strong></div>
+            <div class="tool-detail-row"><span>内部名称</span><code>{{.Name}}</code></div>
+            <div class="tool-detail-row"><span>状态</span><strong class="{{if .Enabled}}text-ok{{else}}text-off{{end}}">{{if .Enabled}}已启用{{else}}已停用{{end}}</strong></div>
+            <div class="tool-card-action"><a class="tool-edit-btn" href="/agents/{{$g.AgentKey}}">编辑 Agent</a></div>
+          </div>
+        </details>
+        {{end}}
+        {{end}}
+      </div>
+    </section>
+    {{end}}
+
+    {{if .ShowArchived}}
+    <section class="tool-group">
+      <div class="tool-group-head"><div><h2>已移除工具</h2><p class="muted">内置工具可恢复；自定义工具恢复后继续使用原配置。</p></div></div>
+      {{if .Archived}}
+      <table class="table tool-table">
+        <thead><tr><th>工具</th><th>分类</th><th>类型</th><th>操作</th></tr></thead>
+        <tbody>
+        {{range .Archived}}
+        <tr><td><div class="tool-name">{{.Display}}</div><div class="tool-code">{{.Name}}</div></td>
+          <td>{{if .Category}}{{.Category}}{{else}}未分类{{end}}</td><td>{{.Kind}}</td>
+          <td><form method="post" action="/tools/restore" class="tool-toggle-form"><input type="hidden" name="id" value="{{.ID}}"><button class="tool-mini-btn" type="submit">恢复</button></form></td></tr>
+        {{end}}
+        </tbody>
+      </table>
+      {{else}}<div class="empty">没有已移除的工具。</div>{{end}}
+    </section>
+    {{end}}
+  </div>
+</div>
+
+<dialog id="tool-dialog" class="modal tool-modal">
+  <form method="post" action="/tools/save" id="tool-form">
+    <div class="modal-head"><h2 id="tool-dialog-title">新增工具</h2><button class="modal-close" type="button" data-close-dialog="tool-dialog">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" name="id" id="tool-id">
+      <div class="form-grid">
+        <label>作用域
+          <select name="scope" id="tool-scope">
+            <option value="session">会话 Agent</option>
+            <option value="worker">Worker</option>
+            <option value="planner">Planner</option>
+          </select>
+        </label>
+        <label>内部名称<input name="name" id="tool-name" pattern="[A-Za-z_][A-Za-z0-9_]*" placeholder="my_api_tool" required></label>
+        <label>显示名称<input name="display" id="tool-display" placeholder="我的 API 工具"></label>
+        <label>分类
+          <select name="category_id" id="tool-category">
+            <option value="0">未分类</option>
+            {{range .Categories}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+          </select>
+        </label>
+        <label class="form-full">说明<textarea name="description" id="tool-description" rows="3" placeholder="模型会看到这段说明"></textarea></label>
+      </div>
+      <div id="tool-http-fields">
+        <h3 class="modal-section-title">HTTP 配置</h3>
+        <div class="form-grid">
+          <label>方法<select name="http_method" id="tool-method"><option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option></select></label>
+          <label>URL<input name="http_url" id="tool-url" placeholder="https://api.example.com/query?q={input}"></label>
+          <label class="form-full">请求头（每行 Key: Value）<textarea name="http_headers" id="tool-headers" rows="3" placeholder="Authorization: Bearer ..."></textarea></label>
+          <label class="form-full">请求体<textarea name="http_body" id="tool-body" rows="3" placeholder='{"query":"{input}"}'></textarea></label>
+        </div>
+        <p class="muted tool-form-hint">模型传入的 <code>input</code> 会替换 URL、请求头、请求体中的 <code>{input}</code>。</p>
+      </div>
+      <label class="tool-check"><input type="checkbox" name="enabled" id="tool-enabled" value="1" checked> 创建后启用</label>
+    </div>
+    <div class="modal-actions"><button class="btn" type="submit">保存</button><button class="btn ghost" type="button" data-close-dialog="tool-dialog">取消</button></div>
+  </form>
+</dialog>
+
+
+
+<script>
+(function () {
+  const groups = Array.from(document.querySelectorAll('.tool-group[data-group]'));
+  const cards = Array.from(document.querySelectorAll('.tool-card'));
+  const sideItems = Array.from(document.querySelectorAll('[data-scope-filter]'));
+  const search = document.getElementById('tool-search');
+  const visibleCount = document.getElementById('tool-visible-count');
+  let activeScope = 'all';
+
+  function applyFilter() {
+    const q = (search && search.value || '').trim().toLowerCase();
+    let visible = 0;
+    groups.forEach(function (group) {
+      const scope = group.dataset.group;
+      const scopeMatch = activeScope === 'all' || scope === activeScope;
+      let groupVisible = 0;
+      group.querySelectorAll('.tool-card').forEach(function (card) {
+        const hit = scopeMatch && (!q || (card.dataset.search || '').toLowerCase().includes(q));
+        card.hidden = !hit;
+        if (hit) groupVisible++;
+      });
+      group.hidden = groupVisible === 0;
+      visible += groupVisible;
+    });
+    if (visibleCount) visibleCount.textContent = visible + ' 个工具';
+  }
+
+  sideItems.forEach(function (item) {
+    item.addEventListener('click', function () {
+      activeScope = item.dataset.scopeFilter;
+      sideItems.forEach(function (x) { x.classList.toggle('active', x === item); });
+      applyFilter();
+      const target = activeScope === 'all' ? document.querySelector('.tools-main') : document.getElementById('group-' + activeScope);
+      if (target) target.scrollIntoView({behavior: 'smooth', block: 'start'});
+    });
+  });
+  if (search) search.addEventListener('input', applyFilter);
+
+  const expandAll = document.getElementById('tool-expand-all');
+  const collapseAll = document.getElementById('tool-collapse-all');
+  if (expandAll) expandAll.addEventListener('click', function () { cards.forEach(function (c) { if (!c.hidden) c.open = true; }); });
+  if (collapseAll) collapseAll.addEventListener('click', function () { cards.forEach(function (c) { c.open = false; }); });
+
+  const toolDialog = document.getElementById('tool-dialog');
+  document.querySelectorAll('[data-close-dialog]').forEach(function (btn) {
+    btn.addEventListener('click', function () { document.getElementById(btn.dataset.closeDialog).close(); });
+  });
+
+  function fillTool(data) {
+    const isEdit = !!data.id;
+    document.getElementById('tool-dialog-title').textContent = isEdit ? '编辑工具' : '新增工具';
+    document.getElementById('tool-id').value = data.id || '';
+    document.getElementById('tool-scope').value = data.scope || 'session';
+    document.getElementById('tool-scope').disabled = isEdit;
+    document.getElementById('tool-name').value = data.name || '';
+    document.getElementById('tool-name').disabled = isEdit;
+    document.getElementById('tool-display').value = data.display || '';
+    document.getElementById('tool-description').value = data.description || '';
+    document.getElementById('tool-category').value = data.category || '0';
+    document.getElementById('tool-enabled').checked = data.enabled !== '0';
+    const http = data.kind === 'http';
+    document.getElementById('tool-http-fields').hidden = !http;
+    let cfg = {};
+    try { cfg = JSON.parse(data.config || '{}'); } catch (_) {}
+    document.getElementById('tool-method').value = cfg.method || 'GET';
+    document.getElementById('tool-url').value = cfg.url || '';
+    document.getElementById('tool-body').value = cfg.body || '';
+    document.getElementById('tool-headers').value = Object.entries(cfg.headers || {}).map(function (e) { return e[0] + ': ' + e[1]; }).join('\n');
+  }
+
+  const add = document.getElementById('tool-add');
+  if (add) add.addEventListener('click', function () {
+    fillTool({enabled: '1', kind: 'http'});
+    toolDialog.showModal();
+  });
+  document.querySelectorAll('.tool-edit-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      fillTool({id: btn.dataset.id, scope: btn.dataset.scope, name: btn.dataset.name,
+        display: btn.dataset.display, description: btn.dataset.description,
+        category: btn.dataset.category, kind: btn.dataset.kind, config: btn.dataset.config,
+        enabled: btn.dataset.enabled, builtin: btn.dataset.builtin});
+      toolDialog.showModal();
+    });
+  });
+
+  applyFilter();
+})();
+</script>
+{{end}}

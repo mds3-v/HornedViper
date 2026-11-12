@@ -1,0 +1,46 @@
+{
+  "runtime": "norma",
+  "default_provider": "deepseek",
+  "provider_order": [
+    "deepseek",
+    "openai",
+    "anthropic",
+    "zhipu"
+  ],
+  "artifact_dir": "artifacts",
+  "submit_command": "",
+  "providers": {
+    "deepseek": {
+      "name": "DeepSeek",
+      "description": "纯 API · Chat Completions",
+      "format": "openai",
+      "base_url": "https://api.deepseek.com/v1",
+      "model": "deepseek-chat",
+      "api_key": ""
+    },
+    "openai": {
+      "name": "OpenAI Official",
+      "description": "Responses API · Chat Completions",
+      "format": "openai",
+      "base_url": "https://api.openai.com/v1",
+      "model": "gpt-4o",
+      "api_key": ""
+    },
+    "anthropic": {
+      "name": "Anthropic Claude",
+      "description": "Anthropic Messages API",
+      "format": "anthropic",
+      "base_url": "https://api.anthropic.com",
+      "model": "claude-sonnet-4-20250514",
+      "api_key": ""
+    },
+    "zhipu": {
+      "name": "Zhipu GLM",
+      "description": "纯 API · Chat Completions",
+      "format": "openai",
+      "base_url": "https://open.bigmodel.cn/api/paas/v4",
+      "model": "glm-4.5",
+      "api_key": ""
+    }
+  }
+}

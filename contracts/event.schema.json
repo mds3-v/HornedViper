@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "WorkflowEvent",
+  "type": "object",
+  "required": ["task_id", "type", "actor_type", "actor_id"],
+  "additionalProperties": false,
+  "properties": {
+    "task_id": { "type": "integer" },
+    "type": { "type": "string" },
+    "actor_type": { "type": "string" },
+    "actor_id": { "type": "string" },
+    "subject_type": { "type": "string" },
+    "subject_id": { "type": "integer" },
+    "payload": { "type": "object" }
+  }
+}

@@ -1,0 +1,83 @@
+{{define "content"}}
+<section class="page-head">
+  <div><h1>后端日志</h1><p>后端实时日志流：engine / api / runtime / 规则拦截。</p></div>
+</section>
+<section class="card">
+  <div class="card-head">
+    <h2>实时日志</h2>
+    <span class="log-legend">
+      <span class="log-dot log-http"></span>HTTP
+      <span class="log-dot log-task"></span>任务
+      <span class="log-dot log-engine"></span>引擎
+      <span class="log-dot log-approval"></span>审批
+      <span class="log-dot log-error"></span>错误
+    </span>
+    <span class="muted">最近最多 500 条 · 自动刷新</span>
+  </div>
+  <div id="log-view" class="log-view" data-lines="{{range .Lines}}[{{.Time}}] {{.Text}}
+{{end}}"></div>
+</section>
+<script>
+(function () {
+  const view = document.getElementById('log-view');
+  if (!view) return;
+  const maxLines = 500;
+  let lines = [];
+
+  function classify(text) {
+    const t = text.toLowerCase();
+    if (/->\s*5\d\d|HTTP\s*5\d\d|panic|fatal|\berror\b|failed|失败|错误|exception|timeout/.test(t)) return 'log-error';
+    if (/->\s*4\d\d|HTTP\s*4\d\d|warn|警告/.test(t)) return 'log-warn';
+    const m = text.match(/\[([a-z][a-z0-9_-]*)/i);
+    const tag = m ? m[1].toLowerCase() : '';
+    if (tag === 'http') return 'log-http';
+    if (tag === 'task' || tag === 'ctfd') return 'log-task';
+    if (tag === 'engine' || tag === 'planner' || tag === 'worker') return 'log-engine';
+    if (tag === 'approval' || tag === 'approver') return 'log-approval';
+    if (tag === 'chat' || tag === 'conversation') return 'log-chat';
+    if (tag === 'llm' || tag === 'runtime') return 'log-llm';
+    return 'log-info';
+  }
+
+  function render() {
+    const frag = document.createDocumentFragment();
+    lines.forEach(function (line) {
+      const row = document.createElement('div');
+      row.className = 'log-line ' + classify(line);
+      const end = line.indexOf(']');
+      if (line.charAt(0) === '[' && end > 0) {
+        const time = document.createElement('span');
+        time.className = 'log-time';
+        time.textContent = line.slice(0, end + 1);
+        const text = document.createElement('span');
+        text.className = 'log-message';
+        text.textContent = line.slice(end + 1).replace(/^\s*\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2}\s*/, ' ');
+        row.appendChild(time);
+        row.appendChild(text);
+      } else {
+        row.textContent = line;
+      }
+      frag.appendChild(row);
+    });
+    view.replaceChildren(frag);
+    view.scrollTop = view.scrollHeight;
+  }
+
+  // Initial server-rendered lines are embedded in a data attribute for a
+  // colored first paint, then SSE appends live.
+  const initial = view.dataset.lines || '';
+  if (initial) lines = initial.split('\n').filter(Boolean);
+  render();
+
+  const es = new EventSource('/api/logs/stream');
+  es.onmessage = function (e) {
+    try {
+      const line = JSON.parse(e.data);
+      lines.push('[' + line.time + '] ' + line.text);
+      if (lines.length > maxLines) lines = lines.slice(-maxLines);
+      render();
+    } catch (_) {}
+  };
+})();
+</script>
+{{end}}

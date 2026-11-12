@@ -1,0 +1,257 @@
+{{define "content"}}
+<section class="page-head">
+  <div><h1>{{if .Draft}}新会话{{else}}{{.Title}}{{end}}</h1></div>
+  {{if not .Draft}}
+  <div class="page-actions">
+    <form method="post" action="/conversation/{{.Conversation.ID}}/delete" onsubmit="return confirm('永久删除这个对话及其消息、摘要和文件？流量会保留，LLM 记录会归档。')">
+      <button class="btn danger" type="submit">删除对话</button>
+    </form>
+  </div>
+  {{end}}
+</section>
+
+<div class="chat-layout">
+  <aside class="card chat-list">
+    <div class="card-head"><h2>会话</h2><a class="link" href="/new">+ 新会话</a></div>
+    {{if .Conversations}}
+      {{range .Conversations}}
+      <a class="chat-task {{if and $.Conversation (eq $.Conversation.ID .ID)}}active{{end}}" href="/conversation/{{.ID}}">
+        <div class="chat-task-title">{{if .Title}}{{.Title}}{{else}}未命名会话{{end}}</div>
+        <div class="chat-task-meta">{{shortTime .UpdatedAt}} · #{{.ID}}</div>
+      </a>
+      {{end}}
+    {{else}}<div class="empty">还没有会话。</div>{{end}}
+  </aside>
+
+  <section class="card chat-panel">
+    <div id="chat-drop-overlay" class="chat-drop-overlay">松开上传文件</div>
+    {{if not .Draft}}
+    <div class="card-head"><h2>{{.Conversation.Title}}</h2></div>
+    {{end}}
+    <div class="chat-messages" id="chat-messages">{{template "conversation_messages" .}}</div>
+    {{if not .Draft}}
+    <details class="jobs-panel" id="jobs-panel" data-owner="conversation" data-owner-id="{{.Conversation.ID}}">
+      <summary>后台任务 <span id="jobs-count">0</span></summary>
+      <div id="jobs-list"><div class="empty small">暂无后台任务</div></div>
+    </details>
+    {{end}}
+    <form class="chat-form composer" method="post" action="{{.Action}}" enctype="multipart/form-data">
+      <div id="chat-file-preview" class="chat-file-preview"></div>
+      <input id="chat-file-input" type="file" name="files" multiple hidden>
+      <input id="chat-file-picker" type="file" multiple hidden>
+      <textarea name="text" rows="2" placeholder="输入消息"></textarea>
+      <div class="composer-bar">
+        <button class="composer-add" type="button" id="chat-add" aria-label="添加附件">+</button>
+        <select class="composer-permission" name="permission_mode" title="AI 操作权限" aria-label="AI 操作权限">
+          <option value="read-only" {{if eq .PermissionMode "read-only"}}selected{{end}}>仅可查看</option>
+          <option value="workspace-write" {{if eq .PermissionMode "workspace-write"}}selected{{end}}>工作区内修改</option>
+          <option value="full" {{if eq .PermissionMode "full"}}selected{{end}}>完全权限</option>
+        </select>
+        <button class="composer-stop" type="button" id="chat-stop" aria-label="停止生成" {{if not .Thinking}}style="display:none"{{end}}>■</button>
+        <select class="composer-reasoning" name="reasoning_level" title="推理等级" aria-label="推理等级">
+          <option value="Off" {{if eq .ReasoningLevel "Off"}}selected{{end}}>Off</option>
+          <option value="Low" {{if eq .ReasoningLevel "Low"}}selected{{end}}>Low</option>
+          <option value="High" {{if eq .ReasoningLevel "High"}}selected{{end}}>High</option>
+          <option value="Max" {{if eq .ReasoningLevel "Max"}}selected{{end}}>Max</option>
+        </select>
+        <span class="composer-model">{{.Model}}</span>
+        <button class="composer-send" type="submit" aria-label="发送">↑</button>
+      </div>
+    </form>
+  </section>
+</div>
+
+<script>
+(function () {
+  const panel = document.querySelector('.chat-panel');
+  const form = document.querySelector('.chat-form');
+  const input = document.getElementById('chat-file-input');
+  const preview = document.getElementById('chat-file-preview');
+  const picker = document.getElementById('chat-file-picker');
+  const addBtn = document.getElementById('chat-add');
+  if (!panel || !form || !input || !preview) return;
+  let files = [];
+  let dt = new DataTransfer();
+  function sync() { input.files = dt.files; }
+  function render() {
+    preview.innerHTML = '';
+    files.forEach(function (f, i) {
+      const card = document.createElement('div');
+      card.className = 'chat-file-card';
+      const icon = document.createElement('div');
+      icon.className = 'chat-file-icon';
+      if (f.type && f.type.indexOf('image/') === 0) {
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(f);
+        img.onload = function () { URL.revokeObjectURL(img.src); };
+        icon.appendChild(img);
+      } else {
+        icon.textContent = (f.name.split('.').pop() || 'FILE').slice(0, 4).toUpperCase();
+      }
+      const body = document.createElement('div');
+      body.className = 'chat-file-body';
+      const name = document.createElement('div');
+      name.className = 'chat-file-name';
+      name.textContent = f.name;
+      const meta = document.createElement('div');
+      meta.className = 'chat-file-meta';
+      const ext = (f.name.split('.').pop() || 'FILE').toUpperCase();
+      let size = Math.max(1, Math.round(f.size / 1024)) + ' KB';
+      if (f.size >= 1024 * 1024) size = (f.size / 1024 / 1024).toFixed(1) + ' MB';
+      meta.textContent = ext + ' · ' + size;
+      body.appendChild(name);
+      body.appendChild(meta);
+      const rm = document.createElement('button');
+      rm.type = 'button';
+      rm.className = 'chat-file-remove';
+      rm.textContent = '×';
+      rm.title = '移除';
+      rm.onclick = function () { removeFile(i); };
+      card.appendChild(icon);
+      card.appendChild(body);
+      card.appendChild(rm);
+      preview.appendChild(card);
+    });
+    sync();
+  }
+  function addFiles(list) {
+    for (const f of list) { files.push(f); dt.items.add(f); }
+    render();
+  }
+  function removeFile(i) {
+    files.splice(i, 1);
+    dt = new DataTransfer();
+    files.forEach(function (f) { dt.items.add(f); });
+    render();
+  }
+  if (picker && addBtn) {
+    addBtn.addEventListener('click', function () { picker.click(); });
+    picker.addEventListener('change', function () { addFiles(picker.files); picker.value = ''; });
+  }
+  panel.addEventListener('paste', function (e) {
+    const items = e.clipboardData && e.clipboardData.items;
+    if (!items) return;
+    const picked = [];
+    for (const item of items) {
+      if (item.kind === 'file') {
+        const f = item.getAsFile();
+        if (f) picked.push(f);
+      }
+    }
+    if (picked.length) { e.preventDefault(); addFiles(picked); }
+  });
+  panel.addEventListener('dragover', function (e) { e.preventDefault(); panel.classList.add('dragging'); });
+  panel.addEventListener('dragleave', function (e) { if (!panel.contains(e.relatedTarget)) panel.classList.remove('dragging'); });
+  panel.addEventListener('drop', function (e) {
+    e.preventDefault();
+    panel.classList.remove('dragging');
+    addFiles(e.dataTransfer.files);
+  });
+  form.addEventListener('submit', function (e) {
+    const text = form.querySelector('textarea').value.trim();
+    if (!text && files.length === 0) { e.preventDefault(); alert('请输入内容或添加文件'); }
+  });
+  const ta = form.querySelector('textarea');
+  ta.addEventListener('input', function () {
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight, 180) + 'px';
+  });
+  const stopBtn = document.getElementById('chat-stop');
+  if (stopBtn) {
+    stopBtn.addEventListener('click', async function () {
+      stopBtn.disabled = true;
+      try {
+        await fetch('/api/conversation/{{if .Conversation}}{{.Conversation.ID}}{{else}}0{{end}}/stop', {method: 'POST'});
+      } catch (_) {}
+      location.reload();
+    });
+  }
+  function formatElapsed(seconds) {
+    if (seconds < 60) return seconds + ' 秒';
+    const m = Math.floor(seconds / 60), s = seconds % 60;
+    return s ? m + ' 分 ' + s + ' 秒' : m + ' 分钟';
+  }
+  function tickElapsed() {
+    document.querySelectorAll('.think-elapsed').forEach(function (el) {
+      const start = Number(el.dataset.start || 0);
+      if (!start) return;
+      el.textContent = formatElapsed(Math.max(0, Math.floor((Date.now() - start) / 1000)));
+    });
+  }
+  setInterval(tickElapsed, 1000);
+  tickElapsed();
+  const box = document.querySelector('.chat-messages');
+  let userPinned = false;
+  if (box) {
+    ['wheel', 'touchmove'].forEach(function (ev) {
+      box.addEventListener(ev, function () { userPinned = true; }, {passive: true});
+    });
+    box.addEventListener('click', function (e) {
+      if (e.target.closest('.think-head') || e.target.closest('.think-step')) userPinned = true;
+    });
+  }
+  function showThinking() {
+    if (!box) return;
+    const last = box.querySelector('.chat-msg.assistant:last-child');
+    const think = last && last.querySelector('.think-box');
+    if (think && last.querySelector('.chat-thinking')) {
+      const br = box.getBoundingClientRect(), tr = think.getBoundingClientRect();
+      if (tr.top < br.top || tr.bottom > br.bottom) box.scrollTop += tr.top - br.top - 6;
+    } else {
+      box.scrollTop = box.scrollHeight;
+    }
+  }
+  showThinking();
+  {{if and .Conversation .Thinking}}
+  (function pollMessages(id) {
+    let stopped = false;
+    async function tick() {
+      if (stopped) return;
+      try {
+        const nearBottom = box && (box.scrollHeight - box.scrollTop - box.clientHeight < 80);
+        const oldScroll = box ? box.scrollTop : 0;
+        const oldBoxes = box ? Array.from(box.querySelectorAll('.think-box')) : [];
+        const oldStates = oldBoxes.map(function (b) {
+          return {
+            collapsed: b.classList.contains('collapsed'),
+            wasThinking: !!b.closest('.chat-msg') && !!b.closest('.chat-msg').querySelector('.chat-thinking'),
+            steps: Array.from(b.querySelectorAll('.think-step')).map(function (d) { return d.open; })
+          };
+        });
+        const res = await fetch('/api/conversation/' + id + '/messages', {cache: 'no-store'});
+        if (!res.ok) throw new Error('poll failed');
+        const html = await res.text();
+        const temp = document.createElement('div');
+        temp.innerHTML = html;
+        const next = temp.firstElementChild;
+        if (!next || !box) throw new Error('empty poll');
+        box.replaceChildren(next);
+        tickElapsed();
+        const thinking = next.dataset.thinking === '1';
+        if (stopBtn) stopBtn.style.display = thinking ? 'inline-flex' : 'none';
+        const newBoxes = box ? Array.from(box.querySelectorAll('.think-box')) : [];
+        newBoxes.forEach(function (b, i) {
+          const st = oldStates[i];
+          if (!st) return;
+          const msg = b.closest('.chat-msg');
+          const stillThinking = !!(msg && msg.querySelector('.chat-thinking'));
+          // A stage that just finished should use the new default: collapsed.
+          if (st.wasThinking && !stillThinking) return;
+          b.classList.toggle('collapsed', st.collapsed);
+          const head = b.querySelector('.think-head');
+          if (head) head.setAttribute('aria-expanded', st.collapsed ? 'false' : 'true');
+          Array.from(b.querySelectorAll('.think-step')).forEach(function (d, j) { if (j < st.steps.length) d.open = st.steps[j]; });
+        });
+        if (box) box.scrollTop = (nearBottom && !userPinned) ? box.scrollHeight : oldScroll;
+        if (!thinking) { stopped = true; return; }
+        setTimeout(tick, 700);
+      } catch (_) {
+        if (!stopped) setTimeout(tick, 1500);
+      }
+    }
+    tick();
+  })({{.Conversation.ID}});
+  {{end}}
+})();
+</script>
+{{end}}

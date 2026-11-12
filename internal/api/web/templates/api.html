@@ -1,0 +1,21 @@
+{{define "content"}}
+<section class="page-head">
+  <div><h1>API 接口</h1><p>HornedViper 的 JSON API；任务控制与审批。</p></div>
+</section>
+<section class="card">
+  <div class="card-head"><h2>接口列表</h2></div>
+  <table class="table">
+    <thead><tr><th>方法</th><th>路径</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><span class="badge ok">GET</span></td><td class="mono">/api/health</td><td>健康检查</td></tr>
+      <tr><td><span class="badge ok">GET</span></td><td class="mono">/api/tasks</td><td>任务列表</td></tr>
+      <tr><td><span class="badge warn">POST</span></td><td class="mono">/api/tasks</td><td>创建任务，JSON：title / mode / goal</td></tr>
+      <tr><td><span class="badge ok">GET</span></td><td class="mono">/api/tasks/{id}</td><td>任务详情、意图、执行、事件、待审批</td></tr>
+      <tr><td><span class="badge warn">POST</span></td><td class="mono">/api/tasks/{id}/pause</td><td>暂停任务</td></tr>
+      <tr><td><span class="badge warn">POST</span></td><td class="mono">/api/tasks/{id}/resume</td><td>继续任务</td></tr>
+      <tr><td><span class="badge warn">POST</span></td><td class="mono">/api/tasks/{id}/stop</td><td>停止任务</td></tr>
+      <tr><td><span class="badge warn">POST</span></td><td class="mono">/api/tasks/{id}/approvals/{approvalID}</td><td>审批意图，JSON：decision / reason</td></tr>
+    </tbody>
+  </table>
+</section>
+{{end}}

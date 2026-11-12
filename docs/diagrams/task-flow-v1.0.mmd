@@ -1,0 +1,90 @@
+flowchart TB
+  classDef input fill:#0d2a4a,stroke:#2d6fb0,color:#dcecff,stroke-width:1.5px
+  classDef engine fill:#241b45,stroke:#7257c8,color:#e6ddff,stroke-width:1.5px
+  classDef run fill:#0d3029,stroke:#2f8a72,color:#d9fff4,stroke-width:1.5px
+  classDef plat fill:#35240f,stroke:#b6782b,color:#ffe7c7,stroke-width:1.5px
+  classDef store fill:#18202b,stroke:#53657a,color:#e1ebf7,stroke-width:1.5px
+  classDef danger fill:#35151b,stroke:#b34a5b,color:#ffd7dd,stroke-width:1.5px
+
+  subgraph UI["① 人类 / UI / API"]
+    direction LR
+    T["Task + Goal<br/>Constraints · Hints · Chat · Budget"]:::input
+    C["新会话 / 对话 Agent<br/>工具 · web_fetch · 报告导出"]:::input
+    DEL["删除任务 / 删除会话<br/>清理文件 · 保留流量 · LLM 归档"]:::danger
+  end
+
+  subgraph ENG["② 任务引擎（事件驱动）"]
+    direction TB
+    SCH["Scheduler<br/>事件聚合 · 唤醒 · 5s tick"]
+    PACK["Planner Packet<br/>facts · findings · open intents · works<br/>TargetStates · RecentFailures · idle"]
+    PLAN["Planner LLM<br/>唯一 Intent 生成者<br/>propose_intents / goal_met"]
+    APP["Approval / Intent Queue<br/>风险分级 · CTF 自动通过<br/>deferred / cooldown"]
+    DISP["Dispatch<br/>MaxWorkers=4 · fast slot<br/>MaxContainers=3 · active 对账"]
+    SWARM["Swarm / Shard<br/>swarm_lead 分 lane<br/>Merger 汇总"]
+    SCH --> PACK --> PLAN --> APP --> DISP
+  end
+
+  subgraph RUN["③ Worker / 运行时"]
+    direction TB
+    WR["Norma Worker Session<br/>单 Intent / Work · 独立 RunDir"]
+    TOOL["Worker Tools<br/>Bash · HTTPRequest · Read/Write<br/>record_assets · record_facts<br/>report_findings · attach_evidence · finish"]
+    RES["WorkResult<br/>assets · facts · findings · evidence<br/>status / partial / stop_reason"]
+    GUARD["Ingestion Guards<br/>跨任务隔离 · Flag 去重/提交<br/>completion lock · asset_tasks"]
+    TS["TargetState<br/>Accepted / Expected / Solved<br/>Cooldown · Exhausted · CloseRequested"]
+    FAIL["Failure Context<br/>失败 Work 的 stop_reason<br/>注入下一次同 target Worker"]
+    WR --> TOOL --> RES --> GUARD
+    GUARD --> TS
+    FAIL -.-> WR
+  end
+
+  subgraph PLAT["④ 目标平台"]
+    direction LR
+    TGT["Challenge Target HTTP(S)<br/>容器 / 靶场 / 业务接口"]
+    CG["Container Guard<br/>start / close / submit<br/>模糊响应用 LLM 判可用性"]
+    SUB["Flag Submit / Completion<br/>correct_flag_count<br/>task_flags · challenge_completions"]
+    CLO["Platform Close<br/>Planner close_target<br/>直接 close / fast close Intent"]
+    TGT --> CG --> SUB
+  end
+
+  subgraph STORE["⑤ 持久化 / 审计 / 读模型"]
+    direction LR
+    SQL[("SQLite · 单写者 WAL<br/>tasks · goals · intents · works<br/>graph · approvals · flags · traffic<br/>llm_calls · conversations · events")]:::store
+    FS["artifacts/<br/>task-&lt;id&gt;/ · work-&lt;id&gt;/<br/>reports/ · llm-archive/"]:::store
+    VIEW["读模型 / 输出<br/>任务详情 · 发现 · 资产 · 审批<br/>流量 · LLM · 报告 · API"]:::store
+    SQL --> VIEW
+    FS --> VIEW
+  end
+
+  T --> SCH
+  C --> SQL
+  C --> FS
+  DEL -. "清理 DB / 文件" .-> SQL
+  DEL -. "LLM 先归档" .-> FS
+  DISP --> WR
+  TOOL --> TGT
+  TOOL --> CG
+  SUB --> RES
+  SUB --> TS
+  SUB --> SQL
+  RES --> SQL
+  RES --> FS
+  GUARD --> SQL
+  TS --> PACK
+  RES --> PACK
+  PACK --> SCH
+  RES --> SWARM
+  SWARM --> PACK
+  PLAN --> CLO
+  CLO --> TGT
+  SUB --> CLO
+  CLO --> SQL
+  TS --> PLAN
+  SQL --> PACK
+  FS --> VIEW
+  VIEW -. "任务/对话页面" .-> UI
+
+  class SCH,PACK,PLAN,APP,DISP,SWARM engine
+  class WR,TOOL,RES,GUARD,TS,FAIL run
+  class TGT,CG,SUB,CLO plat
+  class T,C input
+  class DEL danger

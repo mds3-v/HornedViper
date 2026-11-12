@@ -1,0 +1,128 @@
+{{define "content"}}
+<section class="page-head">
+  <div class="agent-hero">
+    <div class="provider-icon">{{if .IsNew}}A{{else}}{{printf "%.1s" .Agent.Key}}{{end}}</div>
+    <div>
+      <h1>{{if .IsNew}}新建 Agent{{else}}{{.Agent.Name}}{{end}}</h1>
+      <p>
+        {{if .IsNew}}定义一个可复用的角色，用于后续 planner / worker / approver 配置。{{else}}
+        角色配置 · <span class="mono">{{.Agent.Key}}</span>
+        {{if .Agent.Builtin}}· 内置 Agent{{else}}· 自定义 Agent{{end}}
+        · {{if .Agent.Enabled}}已启用{{else}}已停用{{end}}
+        {{end}}
+      </p>
+    </div>
+  </div>
+  <div class="page-actions">
+    {{if .Agent.Builtin}}<span class="badge ok">内置</span>{{end}}
+    <a class="btn" href="/agents">← 返回列表</a>
+  </div>
+</section>
+
+<form method="post" action="{{if .IsNew}}/agents{{else}}/agents/{{.Agent.Key}}{{end}}">
+  <section class="card">
+    <div class="card-head"><h2>基本信息</h2><span class="muted">Key 保存后不可修改</span></div>
+    <div class="form-grid">
+      <label>Key
+        <input name="key" value="{{.Agent.Key}}" {{if not .IsNew}}readonly{{end}} required placeholder="例如 recon-bot">
+        <span class="field-help">唯一标识，用于程序内部引用。</span>
+      </label>
+      <label>名称
+        <input name="name" value="{{.Agent.Name}}" required placeholder="例如 侦察机器人">
+        <span class="field-help">显示在 Agent 清单和任务中的名字。</span>
+      </label>
+      <label class="span-2">描述
+        <input name="description" value="{{.Agent.Description}}" placeholder="这个角色负责什么？">
+      </label>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>提示词与能力</h2><span class="muted">角色行为定义</span></div>
+    <div class="form-grid">
+      <label class="span-2">系统提示词
+        <textarea name="system_prompt" rows="9" placeholder="描述该角色的职责、边界和输出要求">{{.Agent.SystemPrompt}}</textarea>
+        <span class="field-help">会作为该 Agent 的系统提示词；不要在这里写具体任务目标。</span>
+      </label>
+      <div class="field span-2">
+        <div class="field-label">工具</div>
+        <input type="hidden" name="tools_present" value="1">
+        <div class="agent-tool-picker">
+          <div class="agent-tool-toolbar">
+            <input id="agent-tool-search" type="search" placeholder="搜索工具…" autocomplete="off">
+            <span class="muted"><strong id="agent-tool-count">{{.ToolCount}}</strong> 个已选</span>
+            <button type="button" id="agent-tool-clear" class="tool-mini-btn">清空</button>
+          </div>
+          {{range .ToolGroups}}
+          <details class="agent-tool-group" {{if .Open}}open{{end}}>
+            <summary>{{.Title}} <span class="muted">{{len .Tools}}</span></summary>
+            <div class="agent-tool-options">
+              {{range .Tools}}
+              <label class="agent-tool-option" data-search="{{.Name}} {{.Display}} {{.Description}} {{.Category}}">
+                <input type="checkbox" name="tools" value="{{.Name}}" {{if .Checked}}checked{{end}}>
+                <span class="agent-tool-text">
+                  <span class="agent-tool-name">{{.Display}} <code>{{.Name}}</code></span>
+                  <span class="agent-tool-desc">{{.Description}}</span>
+                </span>
+              </label>
+              {{end}}
+            </div>
+          </details>
+          {{end}}
+          {{if not .ToolGroups}}<div class="empty">工具管理中还没有可用工具。</div>{{end}}
+        </div>
+        <span class="field-help">来自工具管理，可多选。保存时会写入该 Agent 的工具清单。</span>
+      </div>
+      <label>模型
+        <input name="model" value="{{.Agent.Model}}" placeholder="留空使用默认模型">
+        <span class="field-help">留空时跟随项目默认供应商/模型。</span>
+      </label>
+      <label class="checkbox span-2">
+        <input type="checkbox" name="enabled" value="1" {{if .Agent.Enabled}}checked{{end}}>
+        <span>启用这个 Agent</span>
+      </label>
+    </div>
+  </section>
+
+  <div class="form-actions">
+    <button class="btn primary" type="submit">保存</button>
+    <a class="btn" href="/agents">取消</a>
+  </div>
+</form>
+
+<script>
+(function () {
+  const boxes = Array.from(document.querySelectorAll('.agent-tool-option input[type=checkbox]'));
+  const count = document.getElementById('agent-tool-count');
+  const search = document.getElementById('agent-tool-search');
+  const clear = document.getElementById('agent-tool-clear');
+  function refresh() {
+    if (count) count.textContent = boxes.filter(function (b) { return b.checked; }).length;
+  }
+  boxes.forEach(function (b) { b.addEventListener('change', refresh); });
+  if (clear) clear.addEventListener('click', function () { boxes.forEach(function (b) { b.checked = false; }); refresh(); });
+  if (search) search.addEventListener('input', function () {
+    const q = search.value.trim().toLowerCase();
+    document.querySelectorAll('.agent-tool-group').forEach(function (group) {
+      let visible = 0;
+      group.querySelectorAll('.agent-tool-option').forEach(function (opt) {
+        const hit = !q || (opt.dataset.search || '').toLowerCase().includes(q);
+        opt.hidden = !hit;
+        if (hit) visible++;
+      });
+      group.hidden = visible === 0;
+      if (q) group.open = visible > 0;
+    });
+  });
+  refresh();
+})();
+</script>
+
+{{if and (not .IsNew) (not .Agent.Builtin)}}
+<div class="agent-edit-actions">
+  <form method="post" action="/agents/{{.Agent.Key}}/delete" onsubmit="return confirm('删除 Agent {{.Agent.Name}}？')">
+    <button class="btn danger" type="submit">删除 Agent</button>
+  </form>
+</div>
+{{end}}
+{{end}}

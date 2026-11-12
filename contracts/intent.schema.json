@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "IntentSpec",
+  "type": "object",
+  "required": ["summary", "rationale", "goal_ids", "priority", "risk", "execution_mode"],
+  "additionalProperties": false,
+  "properties": {
+    "summary": { "type": "string", "minLength": 1 },
+    "rationale": { "type": "string" },
+    "goal_ids": { "type": "array", "items": { "type": "integer" } },
+    "parent_fact_ids": { "type": "array", "items": { "type": "integer" } },
+    "asset_ids": { "type": "array", "items": { "type": "integer" } },
+    "priority": { "type": "integer", "minimum": 0, "maximum": 10 },
+    "risk": { "enum": ["low", "medium", "high", "critical"] },
+    "dangerous_actions": {
+      "type": "array",
+      "items": { "enum": ["delete", "modify", "credential_access"] }
+    },
+    "execution_mode": { "enum": ["single", "shard", "swarm"] },
+    "fanout": {
+      "type": "object",
+      "properties": {
+        "by": { "type": "string" },
+        "max_workers": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": true
+    },
+    "swarm": {
+      "type": "object",
+      "properties": {
+        "lanes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "strategy"],
+            "properties": {
+              "name": { "type": "string" },
+              "strategy": { "type": "string" }
+            },
+            "additionalProperties": true
+          }
+        },
+        "quorum": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": true
+    },
+    "acceptance_criteria": { "type": "array", "items": { "type": "string" } },
+    "budget": { "type": "object" },
+    "required_tools": { "type": "array", "items": { "type": "string" } },
+    "expected_outputs": {
+      "type": "array",
+      "items": { "enum": ["asset", "fact", "finding", "evidence"] }
+    }
+  }
+}

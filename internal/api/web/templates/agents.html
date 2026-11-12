@@ -1,0 +1,25 @@
+{{define "content"}}
+<section class="page-head">
+  <div><h1>Agent 管理</h1><p>内置 Agent 的提示词/配置，以及自定义 Agent 角色。</p></div>
+  <div class="page-actions"><a class="btn primary" href="/agents/new">+ 新建 Agent</a></div>
+</section>
+<section class="card">
+  <div class="card-head"><h2>Agent 清单</h2><span class="muted">共 {{.Pagination.Total}} 个</span></div>
+  {{if .Agents}}
+  <div class="agent-grid">
+    {{range .Agents}}
+    <a class="agent-card" href="/agents/{{.Key}}">
+      <div class="provider-icon">{{printf "%.1s" .Key}}</div>
+      <div class="agent-body">
+        <div class="agent-title">{{.Name}} <span class="badge {{if .Builtin}}ok{{else}}warn{{end}}">{{if .Builtin}}内置{{else}}自定义{{end}}</span></div>
+        <div class="agent-key mono">{{.Key}}</div>
+        <div class="agent-desc">{{.Description}}</div>
+        <div class="agent-meta">{{if .Model}}模型 {{.Model}}{{else}}使用默认模型{{end}} · {{if .Enabled}}已启用{{else}}已停用{{end}}</div>
+      </div>
+    </a>
+    {{end}}
+  </div>
+  {{else}}<div class="empty">暂无 Agent。</div>{{end}}
+  {{template "pagination" .Pagination}}
+</section>
+{{end}}

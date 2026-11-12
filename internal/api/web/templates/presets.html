@@ -1,0 +1,38 @@
+{{define "content"}}
+<section class="page-head">
+  <div>
+    <h1>新建供应商</h1>
+    <p>新建供应商需要先保存到列表；选择一个预设模板开始。</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn" href="/settings">← 返回列表</a>
+  </div>
+</section>
+
+<form class="search-bar" method="get" action="/settings/providers/new">
+  <input name="q" value="{{.Query}}" placeholder="搜索供应商、模型...">
+  <button class="btn" type="submit">搜索</button>
+</form>
+
+{{range .Groups}}
+  {{$g := .}}
+  <section class="card">
+    <div class="card-head"><h2>{{.Category}}</h2><span class="muted">{{len .Presets}} 个模板</span></div>
+    <div class="preset-grid">
+      {{range .Presets}}
+      <a class="preset-card" href="/settings/providers/new?preset={{.Key}}">
+        <div class="provider-icon">{{printf "%.1s" .Key}}</div>
+        <div class="preset-body">
+          <div class="preset-name">{{.Name}}</div>
+          <div class="preset-meta">{{.Model}}</div>
+          <div class="preset-desc">{{.Description}}</div>
+        </div>
+        {{if index $g.Added .Key}}<span class="badge ok">已添加</span>{{end}}
+      </a>
+      {{end}}
+    </div>
+  </section>
+{{end}}
+
+{{if not .Groups}}<div class="card"><div class="empty">没有匹配的模板。</div></div>{{end}}
+{{end}}

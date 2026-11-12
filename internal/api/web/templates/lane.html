@@ -1,0 +1,67 @@
+{{define "content"}}
+<section class="page-head">
+  <div>
+    <h1>Lane {{.Work.LaneID}} · Work #{{.Work.ID}}</h1>
+    <div class="muted">Task #{{.Task.ID}} {{.Task.Title}}{{if .Intent}} · Intent #{{.Intent.ID}} {{.Intent.Summary}}{{end}}</div>
+  </div>
+  <div class="actions"><a class="btn" href="/tasks/{{.Task.ID}}?tab=sessions">返回任务</a></div>
+</section>
+
+{{if .LaneBrief}}<div class="notice">Lane brief：{{.LaneBrief}}</div>{{end}}
+
+<section class="stats stats-4">
+  <div class="stat"><div class="stat-label">状态</div><div class="stat-value"><span class="badge {{statusClass .Work.State}}">{{intentLabel .Work.State}}</span></div><div class="stat-sub">{{.Work.WorkerID}}</div></div>
+  <div class="stat"><div class="stat-label">策略</div><div class="stat-value mono">{{if .LaneStrategy}}{{.LaneStrategy}}{{else}}—{{end}}</div><div class="stat-sub">{{if .Run}}{{.Run.Mode}}{{end}}</div></div>
+  <div class="stat"><div class="stat-label">模型调用</div><div class="stat-value">{{len .Calls}}</div><div class="stat-sub">lane 独立追踪</div></div>
+  <div class="stat"><div class="stat-label">Quarantine</div><div class="stat-value">{{len .Quarantine}}</div><div class="stat-sub">失败 / 迟到 / 未确认</div></div>
+</section>
+
+<section class="card">
+  <div class="card-head"><h2>模型调用</h2><span class="muted">最近 {{len .Calls}} 条</span></div>
+  {{if .Calls}}
+  {{range .Calls}}
+  <article class="trace-call">
+    <div class="trace-call-head">
+      <div><a class="mono" href="/llm-calls/{{.Call.ID}}">LLM #{{.Call.ID}}</a> <span class="badge">{{roleLabel .Call.Role}}</span> <span class="mono muted">{{.Call.Model}}</span> <span class="muted">tokens {{.Usage}} · {{.Call.LatencyMS}} ms</span></div>
+      <span class="muted mono">{{shortTime .Call.CreatedAt}}</span>
+    </div>
+    <details class="trace-system"><summary>当前对话提示词</summary><div class="trace-system-body"><pre>{{.Prompt}}</pre></div></details>
+    <details><summary>查看完整响应</summary><pre class="quarantine-raw">{{.Call.ResponseJSON}}</pre></details>
+  </article>
+  {{end}}
+  {{else}}<div class="empty">该 lane 暂无模型调用。</div>{{end}}
+</section>
+
+<section class="card">
+  <div class="card-head"><h2>执行活动</h2></div>
+  {{if .Activities}}
+  <table class="table compact">
+    <thead><tr><th>时间</th><th>角色</th><th>类型</th><th>工具</th><th>摘要</th></tr></thead>
+    <tbody>{{range .Activities}}<tr><td class="mono">{{shortTime .CreatedAt}}</td><td>{{roleLabel .Role}}</td><td><span class="badge muted">{{activityLabel .Kind}}</span></td><td class="mono">{{.Tool}}</td><td>{{.Summary}}</td></tr>{{end}}</tbody>
+  </table>
+  {{else}}<div class="empty">暂无活动。</div>{{end}}
+</section>
+
+<section class="card">
+  <div class="card-head"><h2>Lane 结果</h2>{{if .Result}}<span class="badge {{statusClass .Result.Status}}">{{.Result.Status}}</span>{{end}}</div>
+  <pre class="quarantine-raw">{{.ResultJSON}}</pre>
+</section>
+
+<section class="card">
+  <div class="card-head"><h2>Artifacts</h2><span class="muted">{{len .Artifacts}}</span></div>
+  {{if .Artifacts}}
+  <table class="table compact"><thead><tr><th>ID</th><th>类型</th><th>路径</th><th>大小</th><th>时间</th></tr></thead>
+  <tbody>{{range .Artifacts}}<tr><td class="mono">#{{.ID}}</td><td><span class="badge muted">{{.Type}}</span></td><td class="mono">{{.Path}}</td><td class="mono">{{.Bytes}}</td><td class="mono">{{shortTime .CreatedAt}}</td></tr>{{end}}</tbody></table>
+  {{else}}<div class="empty">该 lane 暂无 artifacts。</div>{{end}}
+</section>
+
+{{if .Quarantine}}
+<section class="card">
+  <div class="card-head"><h2>该 lane 的隔离结果</h2></div>
+  <table class="table compact">
+    <thead><tr><th>ID</th><th>来源</th><th>原因</th><th>摘要</th><th>状态</th></tr></thead>
+    <tbody>{{range .Quarantine}}<tr><td class="mono">Q{{.ID}}</td><td>{{.SourceKind}}</td><td>{{.Reason}}</td><td>{{.Summary}}</td><td>{{.Status}}</td></tr>{{end}}</tbody>
+  </table>
+</section>
+{{end}}
+{{end}}

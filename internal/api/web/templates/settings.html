@@ -1,0 +1,82 @@
+{{define "content"}}
+<section class="page-head">
+  <div>
+    <h1>供应商列表</h1>
+    <p>{{len .Names}} 个供应商配置；可拖动排序，点击进入详情。</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn primary" href="/settings/providers/new">+ 添加供应商</a>
+    <button class="btn" type="button" disabled title="暂未实现">+ 添加聚合供应商</button>
+    <button class="btn" type="button" disabled title="暂未实现">从第三方导入</button>
+  </div>
+</section>
+
+{{if .Saved}}<div class="notice ok">配置已保存。新任务立即使用新配置。</div>{{end}}
+{{if .Tested}}
+<div class="notice {{if .TestOK}}ok{{else}}warn{{end}}">
+  <strong>测试{{if .TestOK}}通过{{else}}失败{{end}}</strong> — {{.Tested}}
+  {{if .TestOK}}<span class="muted">· {{.TestModel}} · {{.TestLatency}}</span>{{end}}
+  <div class="mono">{{.TestMessage}}</div>
+</div>
+{{end}}
+
+<section class="card">
+  <div class="card-head"><h2>运行配置</h2><span class="muted">全局</span></div>
+  <form method="post" action="/settings">
+    <div class="form-grid">
+      <label>运行模式
+        <select name="runtime">
+          <option value="norma" {{if eq .Config.Runtime "norma"}}selected{{end}}>norma — 真实模型</option>
+          <option value="fake" {{if eq .Config.Runtime "fake"}}selected{{end}}>fake — 确定性演示</option>
+        </select>
+      </label>
+      <label>默认供应商
+        <select name="default_provider">
+          {{range .Names}}<option value="{{.}}" {{if eq $.Config.DefaultProvider .}}selected{{end}}>{{.}}</option>{{end}}
+        </select>
+      </label>
+      <label>产物目录
+        <input name="artifact_dir" value="{{.Config.ArtifactDir}}">
+      </label>
+      <label>CTF 提交命令
+        <input name="submit_command" value="{{.Config.SubmitCommand}}" placeholder="使用 HV_FLAG；可留空">
+      </label>
+    </div>
+    <div class="form-actions">
+      <button class="btn primary" type="submit">保存运行配置</button>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  <div class="card-head"><h2>供应商</h2><span class="muted">拖动左侧手柄排序 · 默认：{{.Config.DefaultProvider}}</span></div>
+  <div id="provider-list" class="provider-list">
+    {{range .Names}}
+      {{$name := .}}
+      {{$p := index $.Config.Providers .}}
+      <div class="provider-row {{if eq $.Config.DefaultProvider $name}}is-default{{end}}" data-key="{{$name}}" draggable="true">
+        <div class="drag-handle" title="拖动排序">⋮⋮</div>
+        <div class="provider-icon">{{printf "%.1s" $name}}</div>
+        <div class="provider-main">
+          <div class="provider-title">
+            {{$p.Name}}
+            {{if eq $.Config.DefaultProvider $name}}<span class="badge ok">默认</span>{{end}}
+            <span class="badge muted">{{formatLabel $p.Format}}</span>
+          </div>
+          <div class="provider-desc">{{$p.Description}}</div>
+          <div class="provider-meta mono">{{$p.Model}} · {{$p.BaseURL}} · {{if index $.Masked $name}}密钥 {{index $.Masked $name}}{{else}}未配置密钥{{end}}</div>
+        </div>
+        <div class="provider-actions">
+          <a class="btn" href="/settings/providers/{{$name}}">编辑</a>
+          <form method="post" action="/settings/providers/{{$name}}/test"><button class="btn" type="submit">测试</button></form>
+          {{if ne $.Config.DefaultProvider $name}}
+          <form method="post" action="/settings/providers/{{$name}}/default"><button class="btn" type="submit">设为默认</button></form>
+          {{end}}
+          <form method="post" action="/settings/providers/{{$name}}/delete" onsubmit="return confirm('删除供应商 {{$p.Name}}？')"><button class="btn danger" type="submit">删除</button></form>
+        </div>
+      </div>
+    {{end}}
+  </div>
+</section>
+<script src="/static/settings.js" defer></script>
+{{end}}

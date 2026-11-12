@@ -1,0 +1,185 @@
+{{define "content"}}
+<section class="page-head">
+  <div><h1>任务</h1><p>所有任务；点击进入任务详情。</p></div>
+  <div class="page-actions">
+    <button class="btn" type="button" onclick="document.getElementById('auto-ctf-dialog').showModal()">自动 CTF</button>
+    <button class="btn primary" type="button" onclick="document.getElementById('new-task-dialog').showModal()">+ 新建任务</button>
+  </div>
+</section>
+
+{{if gt .Synced 0}}<div class="notice ok">已拉取并创建 {{.Synced}} 个 CTF 任务，正在自动解题。</div>{{end}}
+
+<section class="card">
+  <div class="card-head"><h2>全部任务</h2><span class="muted">共 {{.Pagination.Total}} 个</span></div>
+  {{if .Tasks}}
+  <table class="table">
+    <thead><tr><th>ID</th><th>标题</th><th>模式</th><th>状态</th><th>创建时间</th><th></th></tr></thead>
+    <tbody>
+    {{range .Tasks}}
+      <tr>
+        <td class="mono">#{{.ID}}</td>
+        <td><a href="/tasks/{{.ID}}">{{.Title}}</a></td>
+        <td><span class="badge muted">{{modeLabel .Mode}}</span></td>
+        <td><span class="badge {{statusClass .Status}}">{{statusLabel .Status}}</span></td>
+        <td class="mono">{{shortTime .CreatedAt}}</td>
+        <td><a class="link" href="/tasks/{{.ID}}">打开 →</a></td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}<div class="empty">暂无任务。</div>{{end}}
+  {{template "pagination" .Pagination}}
+</section>
+
+<dialog id="new-task-dialog" class="modal task-modal" onclick="if (event.target === this) this.close()">
+  <div class="modal-head">
+    <h2>新建任务</h2>
+    <button class="modal-close" type="button" onclick="document.getElementById('new-task-dialog').close()" aria-label="关闭">×</button>
+  </div>
+  <form id="new-task-form" class="form-grid modal-body" method="post" action="/tasks" enctype="multipart/form-data">
+    <label class="span-2">任务标题
+      <input name="title" value="" required placeholder="例如：腾讯测试集">
+    </label>
+    <label class="span-2">模式
+      <select id="new-task-mode" name="mode">
+        <option value="ctf">CTF — 自动审批所有意图</option>
+        <option value="pentest">渗透测试 — 风险分级审批</option>
+      </select>
+    </label>
+    <label class="span-2">目标
+      <textarea name="goal" rows="4" required>demo：从 demo.local 获取 flag</textarea>
+      <span class="field-help">CTF 任务可直接把比赛地址、Token、题目 ID 写进目标；系统会自动识别，不再强制单独填写 CTF 配置。</span>
+    </label>
+    <div class="span-2 upload-field">
+      <div class="upload-label">上传</div>
+      <div id="task-upload-zone" class="upload-zone">
+        <div class="upload-zone-title">点击选择文件，或拖入文件 / 文件夹</div>
+        <div class="upload-zone-sub">文件夹会保留相对目录结构</div>
+        <button class="btn small" type="button" id="task-dir-button">选择文件夹</button>
+      </div>
+      <div id="task-upload-preview" class="task-upload-preview"></div>
+      <input id="task-files" type="file" name="files" multiple hidden>
+      <input id="task-file-picker" type="file" multiple hidden>
+      <input id="task-dir-picker" type="file" webkitdirectory directory multiple hidden>
+      <input type="hidden" name="file_paths" id="task-file-paths">
+    </div>
+    <div class="form-actions span-2">
+      <button class="btn primary" type="submit">启动任务</button>
+      <button class="btn" type="button" onclick="document.getElementById('new-task-dialog').close()">取消</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="auto-ctf-dialog" class="modal" onclick="if (event.target === this) this.close()">
+  <div class="modal-head">
+    <h2>自动 CTF</h2>
+    <button class="modal-close" type="button" onclick="document.getElementById('auto-ctf-dialog').close()" aria-label="关闭">×</button>
+  </div>
+  <form class="form-grid modal-body" method="post" action="/tasks/auto-ctf">
+    <label class="span-2">CTF 平台配置（自然语言，必填）
+      <textarea name="ctf_config" rows="4" required placeholder="CTFd 地址：https://ctfd.example.com&#10;Token：your-token"></textarea>
+      <span class="field-help">系统会拉取所有未解决题目，为每题创建任务并自动开始解题；同一道题不会重复创建。</span>
+    </label>
+    <div class="form-actions span-2">
+      <button class="btn primary" type="submit">拉取并开始</button>
+      <button class="btn" type="button" onclick="document.getElementById('auto-ctf-dialog').close()">取消</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(function () {
+  const form = document.getElementById('new-task-form');
+  const zone = document.getElementById('task-upload-zone');
+  const preview = document.getElementById('task-upload-preview');
+  const fileInput = document.getElementById('task-files');
+  const filePicker = document.getElementById('task-file-picker');
+  const dirPicker = document.getElementById('task-dir-picker');
+  const pathsInput = document.getElementById('task-file-paths');
+  if (form && zone && preview && fileInput && filePicker && dirPicker && pathsInput) {
+    let picked = [];
+    let dt = new DataTransfer();
+    function sync() { fileInput.files = dt.files; }
+    function render() {
+      preview.innerHTML = '';
+      picked.forEach(function (item, i) {
+        const chip = document.createElement('span');
+        chip.className = 'task-upload-chip';
+        const label = document.createElement('span');
+        label.textContent = item.path + ' · ' + Math.ceil(item.file.size / 1024) + ' KB';
+        chip.appendChild(label);
+        const rm = document.createElement('button');
+        rm.type = 'button';
+        rm.textContent = '×';
+        rm.onclick = function () { removeFile(i); };
+        chip.appendChild(rm);
+        preview.appendChild(chip);
+      });
+      sync();
+    }
+    function addFile(file, path) {
+      picked.push({ file: file, path: path || file.name });
+      dt.items.add(file);
+      render();
+    }
+    function removeFile(i) {
+      picked.splice(i, 1);
+      dt = new DataTransfer();
+      picked.forEach(function (x) { dt.items.add(x.file); });
+      render();
+    }
+    async function addEntry(entry) {
+      if (entry.isFile) {
+        const file = await new Promise(function (resolve, reject) { entry.file(resolve, reject); });
+        addFile(file, entry.fullPath.replace(/^\/+/, ''));
+      } else if (entry.isDirectory) {
+        const reader = entry.createReader();
+        let entries = [];
+        do {
+          entries = await new Promise(function (resolve, reject) { reader.readEntries(resolve, reject); });
+          for (const child of entries) await addEntry(child);
+        } while (entries.length > 0);
+      }
+    }
+    zone.addEventListener('click', function (e) {
+      if (e.target.closest('button')) return;
+      filePicker.click();
+    });
+    document.getElementById('task-dir-button').addEventListener('click', function (e) {
+      e.stopPropagation();
+      dirPicker.click();
+    });
+    filePicker.addEventListener('change', function () {
+      for (const f of filePicker.files) addFile(f, f.name);
+      filePicker.value = '';
+    });
+    dirPicker.addEventListener('change', function () {
+      for (const f of dirPicker.files) addFile(f, f.webkitRelativePath || f.name);
+      dirPicker.value = '';
+    });
+    zone.addEventListener('dragover', function (e) {
+      e.preventDefault();
+      zone.classList.add('dragging');
+    });
+    zone.addEventListener('dragleave', function () { zone.classList.remove('dragging'); });
+    zone.addEventListener('drop', async function (e) {
+      e.preventDefault();
+      zone.classList.remove('dragging');
+      const items = e.dataTransfer.items;
+      if (items && items.length && items[0].webkitGetAsEntry) {
+        for (const item of items) {
+          const entry = item.webkitGetAsEntry();
+          if (entry) await addEntry(entry);
+        }
+      } else {
+        for (const f of e.dataTransfer.files) addFile(f, f.name);
+      }
+    });
+    form.addEventListener('submit', function () {
+      pathsInput.value = JSON.stringify(picked.map(function (x) { return x.path; }));
+    });
+    render();
+  }
+})();
+</script>
+{{end}}

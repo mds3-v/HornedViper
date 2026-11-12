@@ -1,0 +1,49 @@
+{{define "content"}}
+<section class="page-head">
+  <div><h1>{{if .IsNew}}新建拦截规则{{else}}{{.Rule.Name}}{{end}}</h1><p>工具执行前按优先级逐条匹配，首条命中的规则生效。</p></div>
+  <div class="page-actions"><a class="btn" href="/intercept-rules">← 返回列表</a></div>
+</section>
+
+<form method="post" action="{{if .IsNew}}/intercept-rules{{else}}/intercept-rules/{{.Rule.ID}}{{end}}">
+  <section class="card">
+    <div class="card-head"><h2>规则配置</h2>{{if .Rule.Builtin}}<span class="badge ok">内置</span>{{end}}</div>
+    <div class="form-grid">
+      <label>名称
+        <input name="name" value="{{.Rule.Name}}" required>
+      </label>
+      <label>优先级
+        <input type="number" name="priority" value="{{.Rule.Priority}}" min="1">
+      </label>
+      <label>目标
+        <select name="target">
+          <option value="input" {{if eq .Rule.Target "input"}}selected{{end}}>工具输入</option>
+        </select>
+      </label>
+      <label>匹配类型
+        <select name="match_type">
+          <option value="regex" {{if eq .Rule.MatchType "regex"}}selected{{end}}>正则</option>
+          <option value="string" {{if eq .Rule.MatchType "string"}}selected{{end}}>字符串</option>
+        </select>
+      </label>
+      <label class="span-2">匹配内容
+        <input name="pattern" value="{{.Rule.Pattern}}" placeholder="例如 (?i)(rm\s+-rf|mkfs)" required>
+      </label>
+      <label>策略
+        <select name="mode">
+          <option value="ask" {{if eq .Rule.Mode "ask"}}selected{{end}}>需人工审批</option>
+          <option value="deny" {{if eq .Rule.Mode "deny"}}selected{{end}}>禁止</option>
+          <option value="allow" {{if eq .Rule.Mode "allow"}}selected{{end}}>允许</option>
+        </select>
+      </label>
+      <label class="checkbox"><input type="checkbox" name="enabled" value="1" {{if .Rule.Enabled}}checked{{end}}> 启用</label>
+    </div>
+  </section>
+  <div class="form-actions"><button class="btn primary" type="submit">保存</button></div>
+</form>
+
+{{if and (not .IsNew) (not .Rule.Builtin)}}
+<div class="form-actions">
+  <form method="post" action="/intercept-rules/{{.Rule.ID}}/delete" onsubmit="return confirm('删除规则？')"><button class="btn danger" type="submit">删除</button></form>
+</div>
+{{end}}
+{{end}}
