@@ -5,6 +5,20 @@ Go + Norma + SQLite，事件驱动，LLM 负责判断，工作流负责状态、
 
 当前版本：**v1.0**。已完成 Phase 3 的 CTF 调度、swarm/shard、隔离、冲突与重试策略，以及报告导出、流量分组和任务详情报告页。
 
+## 启动
+
+```bash
+./start.sh
+```
+
+默认使用 `hornedviper.db`。如需从空库开始，可复制仅含 schema 的模板：
+
+```bash
+cp hornedviper-base.db hornedviper.db
+```
+
+`hornedviper-base.db` 不包含任务、对话、流量或 LLM 数据，首次启动会自动写入默认 Agent/规则种子。
+
 ## 已实现
 
 ### 内核

@@ -9,3 +9,6 @@ artifacts/
 .DS_Store
 config.json
 config.json.tmp
+
+# Empty schema template is tracked for git.
+!hornedviper-base.db
